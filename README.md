@@ -1,268 +1,224 @@
-# Fluneit
+<p align="center"><img src="assets/app-icon-128.png" width="96" alt=""></p>
 
-Eigenständiges Windows-Programm (`Fluneit.exe`), das die Lautstärke
-**einzelner Programme** mit dem Lautstärkerad der Tastatur regelt.
+<h1 align="center">FluneIt</h1>
 
-## Bedienung
+<p align="center">
+  <b>The volume wheel on your keyboard, for every app on its own.</b><br>
+  Hold a key, turn the wheel: the game, the music or the voice chat gets louder or quieter.
+</p>
 
-| Aktion | Wirkung |
+<p align="center">
+  <a href="https://github.com/FynnXland/FluneIt/releases/latest"><img src="https://img.shields.io/github/v/release/FynnXland/FluneIt?label=release" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/FynnXland/FluneIt" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%2011-0078D6" alt="Platform: Windows 11">
+</p>
+
+<p align="center">
+  <a href="https://github.com/FynnXland/FluneIt/releases/latest"><b>Download for Windows</b></a> &nbsp;·&nbsp;
+  <a href="README.de.md">Deutsch</a> &nbsp;·&nbsp; <a href="docs/">Documentation</a> &nbsp;·&nbsp;
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
+
+<p align="center">
+  <img src="docs/media/hero.en.gif" width="760" alt="Holding Ctrl and turning the wheel raises the game from 40 to 60 percent; then Ctrl+Shift lowers the microphone, Alt raises the music app while a second player is shown dimmed, and Shift skips to the next track with title and cover in the overlay">
+  <br><i>One wheel, four targets. The overlay looks like the Windows volume display and appears in the same place.</i>
+</p>
+
+Windows has one volume wheel and a mixer that hides several clicks deep. FluneIt
+lets the wheel change the app you are looking at, the microphone, your music or
+your voice chat, depending on the key you hold, and shows what it did in an
+overlay that looks like the one from Windows. On top, an optional equalizer and
+compressor shape everything you hear, with presets made for games. No account,
+no driver to install, and FluneIt only goes online when you ask it to look for
+an update.
+
+> [!NOTE]
+> The interface is in German. This README gives the German labels with their
+> meaning, for example *Effekte* (effects).
+
+## How it works
+
+```mermaid
+flowchart LR
+    A["Games, chat, music"] --> B["Bridge<br/>(an output nobody listens to)"]
+    B --> C["FluneIt<br/>equalizer, compressor, limiter"]
+    C --> D["Your headphones"]
+```
+
+The volume keys work without any of this: FluneIt sets the volume of the chosen
+app in the Windows mixer. Only the optional effects need a detour, because
+Windows does not let programs change other programs' sound without a driver.
+While effects are on, Windows plays to a *bridge*, an output with nothing
+plugged in, and FluneIt records it there, applies the effects and plays the
+result on your real device. Turning effects off switches everything back.
+Details: [docs/architecture.md](docs/architecture.md).
+
+## Features
+
+**The wheel follows the key you hold.** <kbd>Ctrl</kbd> for the app in front,
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd> for the microphone, <kbd>Alt</kbd> for the
+music app from any window, <kbd>Ctrl</kbd>+<kbd>Alt</kbd> for the voice-chat
+apps together, <kbd>Shift</kbd> for tracks. The wheel alone still changes the
+system volume.
+
+**Effects for what you hear** (optional, off until you turn them on).
+<p align="center"><img src="docs/media/effects.png" width="776" alt="The Effekte page: effects running from the bridge to the headphones with about 22 ms delay, the preset Gaming – Schritte & Details selected, and the seven-band equalizer raised around 2.5 and 6 kHz and lowered below 150 Hz"></p>
+
+- **Gaming presets:** *Schritte & Details* for shooters, *Ausgewogen* for
+  role-playing games, *Leise Nacht* for late sessions, plus music, film, speech
+  and bass. Save your own under a name.
+- **Seven-band equalizer** you drag with the mouse, a compressor with one
+  *Stärke* (strength) slider, and a safety limiter that always stays on.
+- **Vergleichen** (compare) switches the effects off for a moment so you can
+  hear the difference.
+- **Tray mixer:** click the tray icon for system, microphone and every app with
+  sound, plus the output device.
+- **Overlay that replaces the Windows one** for the system volume as well, so
+  you never see two at once.
+- **Rounding:** shortly after you stop turning, the volume snaps to the nearest
+  multiple of 5 % (or 10 %, or off).
+- **Rules per app:** always start an app at a fixed volume, always muted, or
+  keep the wheel away from it.
+
+<details><summary><b>More features</b></summary>
+
+- **Media keys:** <kbd>Shift</kbd> + wheel changes the track, <kbd>Shift</kbd> +
+  mute key plays and pauses, <kbd>Shift</kbd>+<kbd>Alt</kbd> + wheel seeks by
+  10 seconds. The overlay shows title, artist and cover.
+- **Skip protection:** skipped a track by accident? Going back within 60
+  seconds returns to the second where you were.
+- **Several music players:** <kbd>Alt</kbd> + wheel controls one of them; the
+  others appear dimmed, and <kbd>←</kbd> <kbd>→</kbd> switch while the overlay
+  is visible.
+- **Mode hint:** hold a modifier for a moment and a small label tells you what
+  the wheel would change.
+- **Microphone chain:** noise suppression, noise gate and correction for your
+  microphone. Other apps only receive it through a virtual audio cable such as
+  VB-CABLE, which FluneIt does not install.
+- **Hide apps and devices** from the mixer with a right click.
+
+</details>
+
+## A look inside
+
+<p align="center"><img src="docs/media/mixer.png" width="360" alt="The tray mixer: sliders for system and microphone, then Browser, Game, Music and Voice Chat, and a list of output devices with the headphones selected"></p>
+
+The tray mixer opens with a click on the speaker icon in the notification area.
+All app and device names in these pictures are invented sample data.
+
+## Installation
+
+| Platform | Get it | Notes |
+|---|---|---|
+| Windows 11 | [`FluneIt.exe`](https://github.com/FynnXland/FluneIt/releases/latest) | A single file of about 60 MB, no installer. Uses about 80 MB of memory while idle. |
+| Windows 10 | same file | Should work, but has not been tested. |
+| Linux | from source, see [Development](#development) | Experimental: the code exists but has only been checked by import tests, not on a real desktop. |
+
+> [!TIP]
+> FluneIt is not signed, so Windows SmartScreen may warn you when you start it
+> the first time. Choose *More info → Run anyway*. To make sure the file is the
+> one from this page, compare its checksum with `SHA256SUMS.txt` from the
+> release: `Get-FileHash FluneIt.exe -Algorithm SHA256`.
+
+### First run
+
+1. Put `FluneIt.exe` in a folder where it can stay, for example
+   `%LOCALAPPDATA%\Programs\FluneIt`, and start it.
+2. A welcome window shows the main key and offers *Mit Windows starten*
+   (start with Windows).
+3. FluneIt now sits in the notification area. Right-click the icon for
+   *Einstellungen öffnen* (open settings).
+
+To use effects, open *Effekte* and turn on the switch. A short dialog asks for
+your headphones and for the bridge, an output with nothing plugged in, such as
+the HDMI output of your graphics card or the digital output of the mainboard.
+
+## Everyday use
+
+| Keys | What happens |
 |---|---|
-| Rad drehen | System-Lautstärke (wie bisher, Windows-Anzeige) |
-| **Strg** halten + Rad drehen | Lautstärke der App, die gerade den Fokus hat (±5 %) |
-| **Strg** + Stumm-Taste | Fokussierte App stumm schalten / wieder laut |
-| **Strg+Shift** halten + Rad drehen | Mikrofon-Lautstärke (Overlay mit Mikrofon-Symbol) |
-| **Strg+Shift** + Stumm-Taste | Mikrofon stumm schalten / wieder an |
-| **Shift** + Rad drehen | Titel wechseln (vor/zurück) – Overlay zeigt Songtitel + Album-Cover |
-| **Shift** + Stumm-Taste | Wiedergabe / Pause (auch per **Mittelklick** aufs Tray-Symbol) |
-| **Shift+Alt** + Rad drehen | Im Titel spulen (±10 s pro Tick, `spulen_sekunden`) |
-| **Alt** halten + Rad drehen | Lautstärke **einer** Musik-App (Spotify/Browser/Deezer …). Die geregelte App steht unten, weitere laufende Player erscheinen gedimmt darüber |
-| **Alt** + **← / →** (bei sichtbarem Overlay) | Zwischen mehreren Musik-Apps wechseln (Auswahl wird gemerkt) |
-| **Alt** + Stumm-Taste | Ausgewählte Musik-App stumm schalten |
-| **Strg+Alt** + Rad drehen | Lautstärke der **Kommunikations-Apps** (Discord, TeamSpeak, Teams …) gemeinsam |
-| **Strg+Alt** + Stumm-Taste | Kommunikations-Apps stumm schalten |
-| Klick aufs Tray-Symbol | **Mini-Mixer**: alle Apps mit Audio, Slider + Stumm-Knopf pro App (schließt mit Esc oder Klick daneben) |
-| Modifier **halten** (~0,7 s) | Dezente Pille zeigt, was das Rad gerade regeln würde (abschaltbar: Einstellungen → Allgemein) |
+| Wheel | System volume, as always |
+| <kbd>Ctrl</kbd> + wheel | Volume of the app in front |
+| <kbd>Ctrl</kbd> + mute key | Mute or unmute the app in front |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd> + wheel / mute key | Microphone |
+| <kbd>Alt</kbd> + wheel / mute key | The music app, from any window |
+| <kbd>Ctrl</kbd>+<kbd>Alt</kbd> + wheel / mute key | Voice-chat apps (Discord, TeamSpeak, Teams …) |
+| <kbd>Shift</kbd> + wheel | Next or previous track |
+| <kbd>Shift</kbd> + mute key | Play or pause |
+| <kbd>Shift</kbd>+<kbd>Alt</kbd> + wheel | Seek within the track |
 
-**Skip-Reue-Schutz:** Wird ein Titel versehentlich übersprungen, merkt sich
-Fluneit die Sekunde. Geht man innerhalb von 60 s zurück (Medien-Taste + Rad
-runter), springt der Titel wieder genau dorthin – mit Titel-Abgleich, damit
-nie im falschen Song gespult wird.
+The keys can be changed under *Steuerung* (controls); all except the one for the
+app in front can also be turned off. The <kbd>Fn</kbd> key cannot be used:
+keyboards handle it themselves and never tell Windows about it.
 
-Beim Regeln mit Strg erscheint ein Overlay im Stil der Windows-11-Anzeige –
-an exakt derselben Position (unten mittig, pixelgenau vermessen), mit
-Lautsprecher-Icon, blauem Slider und Prozentzahl. Darüber schwebt eine Pille
-mit dem Namen des Programms. Gezeichnet mit echter Per-Pixel-Transparenz,
-sanftem Ausblenden; Mausklicks gehen durch das Overlay hindurch.
+**Effects delay.** The detour through the bridge costs time. The effects page
+shows FluneIt's estimate; on the development machine it was about 20 ms for
+*Niedrig* (low), 40 ms for *Mittel* (medium) and 100 ms for *Sicher* (safe).
+For games take *Niedrig*; if it crackles, go one step up.
 
-Auch bei der **System-Lautstärke** (Rad ohne Taste) zeigt Fluneit das eigene
-Overlay mit Label „System“: Das native Windows-OSD wird per WinEvent-Hook
-abgefangen und ausgeblendet, sobald es zu einer Lautstärketaste erscheint.
-Sicherung gegen Doppelanzeige: Bestätigt der Hook die Unterdrückung nicht
-(z. B. nach einem Windows-Update mit anderem Fensternamen), zeigt Fluneit
-bewusst **nichts** und überlässt Windows sein OSD – nie beide gleichzeitig.
-Abschaltbar unter Einstellungen → Allgemein → „Windows-Anzeige ersetzen“.
+**What the gaming presets can and cannot do.** A game delivers one finished
+mix. Single sounds like "only footsteps" cannot be pulled out of it, only their
+frequency range. *Schritte & Details* raises the range where steps and reloads
+sit (about 2.5 to 6 kHz) and lowers the bass that covers them.
 
-Hinweis: **Fn** geht nicht, weil die Fn-Taste rein in der Tastatur-Hardware
-verarbeitet wird und für Windows unsichtbar ist. Deshalb Strg/Shift (per
-`config.json` auch Strg oder Alt möglich).
+## Privacy and your data
 
-## Starten & Beenden
+| What | Where | Leaves your PC? |
+|---|---|---|
+| Settings | `%LOCALAPPDATA%\Fluneit\config.json`, or next to `FluneIt.exe` if a `config.json` is already there | No |
+| Log file | `%LOCALAPPDATA%\Fluneit\fluneit.log`: program starts and errors; can name apps, audio devices and folders, never audio | No |
+| Autostart | a task named *Fluneit* in the Windows Task Scheduler | No |
+| Update check | a request to `api.github.com`, only when you click *Nach Updates suchen* | Only this request |
 
-Doppelklick auf **`Fluneit.exe`** – läuft im Hintergrund mit
-Lautsprecher-Symbol im Infobereich (Tray). Es kann immer nur eine Instanz
-laufen (Doppelstart wird ignoriert).
+FluneIt does not record or store audio. With effects on, sound passes through
+it in memory on its way to your headphones. The experimental Linux version also
+loads album art when a music player offers it as a web address. To remove FluneIt completely, turn
+off *Mit Windows starten*, quit it from the tray menu (*Beenden*) and delete
+`FluneIt.exe` and the folder `%LOCALAPPDATA%\Fluneit`.
 
-Tray-Menü (Rechtsklick auf das Symbol):
-- **Mixer** – Mini-Mixer öffnen (auch per Linksklick)
-- **Einstellungen öffnen** – das Einstellungsfenster
-- **Mit Windows starten** – Autostart an/aus (Häkchen zeigt den Zustand)
-- **Neu starten** / **Beenden**
+## Troubleshooting
 
-## Einstellungsfenster & Design
+| Problem | Fix |
+|---|---|
+| No sound after FluneIt crashed while effects were on | Start FluneIt again: it switches the default device back. Or choose your headphones in the Windows sound settings. |
+| Effects crackle | *Effekte → Verzögerung*: one step higher. |
+| The effects page says libraries are missing | Only when running from source: `pip install -r requirements.txt`. |
+| The wheel does nothing with <kbd>Ctrl</kbd> held | The app in front may have no sound right now; the overlay then says *kein Audio* (no audio). Check *Regeln* (rules) for an app that is excluded. |
+| FluneIt does not start with Windows | *Allgemein* (general) shows how autostart is set up. The log records every start, marked *Anmeldung* (logon) or *manuell* (by hand). |
+| Something else | Open an [issue](https://github.com/FynnXland/FluneIt/issues/new/choose) and add a log excerpt (*Über → Log-Datei öffnen*). |
 
-Die Oberfläche folgt dem „SoundControl Design System“ (claude.ai/design,
-[DESIGN_BRIEF.md](DESIGN_BRIEF.md)) im Windows-11-Fluent-Stil, umgesetzt in
-[ui.py](ui.py). Fünf Seiten:
-- **Allgemein** – Autostart, Overlay an/aus, Anzeigedauer
-- **Steuerung** – Modifier-Tasten (App + Mikrofon), Schrittweite, Belegungsübersicht
-- **Mixer** – System- und App-Lautstärken mit Suche, Slidern und Stummschalter
-- **Regeln** – App-Regeln anlegen/bearbeiten/löschen (Dialog statt config-Editieren)
-- **Über** – Version, Log/Projektordner
+## Development
 
-Das Tray-Flyout (Linksklick) enthält zusätzlich einen **Ausgabegerät-Wechsler**
-(Standard-Wiedergabegerät per Klick umschalten). Beim ersten Start begrüßt ein
-dreistufiges Onboarding-Fenster.
-
-## Konfiguration (`config.json`)
-
-```json
-{
-  "modifier": "strg",
-  "mikrofon_modifier": "strg+shift",
-  "medien_modifier": "shift",
-  "schrittweite_prozent": 5,
-  "anzeige_dauer_ms": 1500,
-  "regeln": []
-}
+```powershell
+git clone https://github.com/FynnXland/FluneIt.git
+cd FluneIt
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-dev.txt
+python -m fluneit                 # start from source
+python -m pytest                  # tests, no audio device needed
+.\packaging\build_exe.ps1         # builds dist\FluneIt.exe
 ```
 
-- `modifier` / `mikrofon_modifier` / `medien_modifier` / `hintergrund_modifier`:
-  einzelne Taste (`"shift"`, `"strg"`, `"alt"`) **oder Kombination** (`"strg+shift"`);
-  `""` schaltet die jeweilige Funktion ab. Die spezifischste Kombi gewinnt
-  (Strg+Shift schlägt Strg und Shift). Spulen = `medien_modifier` + Alt + Rad.
-- `runden_auf`: rastet die Lautstärke kurz nach dem letzten Rad-Tick auf das
-  nächste Vielfache ein (z. B. `5`: 12 % → 10 %; `0` = aus) — für App-,
-  Mikrofon- **und System-Lautstärke**. Das Overlay taucht dabei mit
-  „… – auf X % gerundet“ als Feedback wieder auf. Auch im Einstellungsfenster
-  unter „Steuerung“ → „Auf runde Werte einrasten“.
-- `ausgeblendete_apps` / `ausgeblendete_geraete`: per **Rechtsklick** im
-  Tray-Mixer lassen sich Apps und Ausgabegeräte ausblenden; unter
-  Einstellungen → Mixer → „Ausgeblendet“ wieder einblenden.
-- `regeln`: werden angewendet, sobald eine App **neu** Audio startet:
-  ```json
-  { "app": "discord.exe", "typ": "startlautstaerke", "wert": 40 }
-  { "app": "spotify.exe", "typ": "stumm" }
-  { "app": "game.exe",    "typ": "ausschliessen" }
-  ```
-  `startlautstaerke` = App beginnt immer mit diesem Wert ·
-  `stumm` = App startet stumm · `ausschliessen` = das Rad ignoriert diese App
+Python 3.11 on Windows. More in [CONTRIBUTING.md](CONTRIBUTING.md) and
+[docs/architecture.md](docs/architecture.md).
 
-Nach Änderungen: Tray → „Neu starten“.
+## Acknowledgements
 
-## Technik-Notizen
+FluneIt builds on [pycaw](https://github.com/AndreMiras/pycaw) and
+[comtypes](https://github.com/enthought/comtypes) for the Windows audio
+interfaces, [pystray](https://github.com/moses-palmer/pystray) for the tray
+icon, [NumPy](https://numpy.org/) and [SciPy](https://scipy.org/) for the
+effects and [python-sounddevice](https://github.com/spatialaudio/python-sounddevice)
+for playback. All bundled components and their licenses are listed in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
-- Tastatur-Hook (WH_KEYBOARD_LL) fängt die Medientasten ab; mit gehaltenem
-  Modifier werden sie geschluckt und auf die App-Session (WASAPI/pycaw)
-  umgeleitet. Browser & Co. mit mehreren Prozessen werden über Kindprozesse
-  und Prozessnamen erfasst, UWP-Apps über ApplicationFrameHost aufgelöst.
-- Overlay: natives Layered Window (`UpdateLayeredWindow`, Per-Pixel-Alpha),
-  Position/Farben am echten Windows-OSD vermessen, skaliert mit der
-  System-DPI. Die Windows-Anzeige (`XamlExplorerHostIslandWindow`) wird bei
-  Bedarf per `ShowWindow` ausgeblendet.
-- Performance: Audio-Sessions werden 1 s gecacht, gerenderte Overlay-Bilder
-  pro Lautstärkestufe wiederverwendet. Leerlauf: 0 % CPU.
-- Fehler landen in `fluneit.log`.
+## License
 
-## Entwicklung
+FluneIt is released under the [MIT License](LICENSE).
 
-```
-python -m pip install -r requirements.txt
-python fluneit.py          # direkt ausfuehren
-.\build_exe.ps1                  # Fluneit.exe neu bauen (braucht pyinstaller)
-```
+Unless you explicitly state otherwise, any contribution you submit for inclusion
+in this project is licensed under the MIT License, without additional terms or
+conditions.
 
-## Plattformen
-
-Fluneit laeuft unter Windows und Linux aus derselben `fluneit.py`. Alles
-Plattformspezifische steckt hinter `IS_WINDOWS` bzw. in den `linux_*`-Modulen:
-
-| Bereich      | Windows                     | Linux                        |
-|--------------|-----------------------------|------------------------------|
-| Tasten       | `WH_KEYBOARD_LL`-Hook       | X11-Grabs (`linux_input`)    |
-| Audio        | WASAPI / pycaw              | PulseAudio/PipeWire (`linux_audio`) |
-| Medien       | SMTC (winrt)                | MPRIS ueber D-Bus (`linux_media`)   |
-| Overlay      | `UpdateLayeredWindow`       | Tk-Fenster (`linux_osd`)     |
-| Autostart    | Verknuepfung in `Startup`   | `~/.config/autostart/*.desktop` |
-
-Bauen: `build_exe.ps1` (Windows) bzw. `build_linux.sh` (Linux).
-
-`config.json` ist plattformneutral - Prozessnamen werden ohne `.exe`
-verglichen, dieselbe Datei funktioniert auf beiden Systemen. Sie liegt neben
-dem Programm; ist der Ordner nicht beschreibbar, weicht Fluneit nach
-`%LOCALAPPDATA%\Fluneit` bzw. `~/.local/state/fluneit` aus (dasselbe gilt fuer
-`fluneit.log`).
-
-## Audio-Effekte (optional)
-
-Auf der Seite **Effekte** liegen Equalizer, Kompressor, Rauschunterdrueckung
-und Noise Gate. Alles ist standardmaessig **aus** - wer das nicht braucht,
-merkt nichts davon, und die dafuer noetigen Bibliotheken werden erst beim
-Einschalten geladen.
-
-### Wie es funktioniert
-
-Windows laesst Programme nicht ohne Treiber in den Audioweg eingreifen. Fluneit
-loest das mit einer **Bruecke** und ohne jeden Treiber:
-
-```
-Programme  ->  Brueckengeraet      ->  Fluneit          ->  Kopfhoerer
-               (hoert niemand)          Effektkette          (echtes Geraet)
-                                        WASAPI-Loopback
-```
-
-Beim Einschalten macht Fluneit das Brueckengeraet zum Standard-Ausgabegeraet,
-nimmt es per WASAPI-Loopback auf, rechnet die Effekte und gibt auf dem echten
-Geraet aus. Beim Ausschalten wird alles zurueckgestellt - auch dann, wenn
-Fluneit abstuerzt oder hart beendet wird (das zurueckzustellende Geraet steht
-in `config.json` unter `effekte_wiederherstellen` und wird beim naechsten
-Start aufgeraeumt).
-
-Als Bruecke eignet sich jeder Ausgang, an dem nichts haengt, zum Beispiel
-"Realtek Digital Output" oder ein HDMI-Ausgang. Fluneit schlaegt automatisch
-einen vor.
-
-### Verzoegerung
-
-Der Umweg kostet Zeit. Gemessen auf dem Entwicklungsrechner (44,1 kHz):
-
-| Stufe   | ca. Verzoegerung | Rechenlast |
-|---------|------------------|------------|
-| Niedrig | 22 ms            | ~10 %      |
-| Mittel  | 42 ms            | ~7 %       |
-| Sicher  | 102 ms           | ~6 %       |
-
-Fuers Zocken "Niedrig" nehmen. Knackt es, eine Stufe hoeher gehen.
-
-### Taktgeber zweier Geraete
-
-Bruecke und Kopfhoerer haengen an verschiedenen Quarzen. Den Takt gibt die
-Ausgabe vor: Fluneit schreibt blockierend, laeuft also genau so schnell, wie
-das Ausgabegeraet abnimmt. Laeuft die Quelle dauerhaft schneller, greift eine
-Obergrenze und verwirft den aeltesten Puffer - das zaehlt die Effekte-Seite
-als "Aussetzer". Im Test blieb der Zaehler ueber drei Minuten Dauerbetrieb
-bei 0.
-
-(Ein Versuch, zusaetzlich um einzelne Samples nachzuregeln, wurde wieder
-entfernt: gemessen griff er 100-mal pro Sekunde ein statt der wenigen Male
-pro Minute, die echte Quarzdrift braucht - in Summe ein hoerbares Brummen.
-Der Fuellstand taugt bei blockierender Ausgabe nicht als Driftanzeige, weil
-er ohnehin fast immer leer ist.)
-
-### Was die Gaming-Presets wirklich tun
-
-Ein Spiel liefert nur einen fertigen Stereomix - einzelne Klaenge wie
-"Schritte" oder "Faehigkeiten" lassen sich daraus **nicht** herausrechnen. Was
-funktioniert, ist der Weg ueber Frequenzen: Schritte und Nachladen liegen
-grob zwischen 2 und 6 kHz, Explosionen im Tiefbass. Das Preset
-"Gaming - Schritte" hebt daher den Bereich an und senkt den Bass, der ihn
-sonst verdeckt. Genau so arbeiten kommerzielle "Gaming-Equalizer" auch -
-Werkzeuge wie SteelSeries Sonar trennen Spiel und Chat dagegen ueber eigene
-virtuelle Audiogeraete, was einen signierten Treiber braucht.
-
-### Mikrofon
-
-Die Mikrofonkette (Rauschunterdrueckung, Gate, Kompressor, EQ) laeuft
-unabhaengig. Sie kann das bearbeitete Signal auf einem Ausgabegeraet
-**mithoerbar** machen. Damit Discord oder TeamSpeak das bearbeitete Mikrofon
-als Eingang sehen, braeuchte es ein virtuelles Audiokabel - das ist ein
-Kernel-Treiber und in Fluneit bewusst nicht enthalten.
-
-## Autostart
-
-Unter Windows richtet Fluneit eine **Anmelde-Aufgabe** in der Aufgabenplanung
-ein (Name: `Fluneit`), nicht mehr eine Verknuepfung im Autostart-Ordner.
-
-Warum der Wechsel: Eine Verknuepfung im Autostart-Ordner kann Windows still
-uebergehen - der Schalter in Fluneit stand auf "an", weil die Datei da war,
-und trotzdem startete beim Anmelden nichts. Eine Aufgabe laesst sich dagegen
-abfragen; `autostart_enabled()` liest jetzt den echten Zustand, statt nur zu
-pruefen, ob eine Datei existiert.
-
-Eigenschaften der Aufgabe:
-
-| Einstellung           | Wert  | Warum                                        |
-|-----------------------|-------|----------------------------------------------|
-| Verzoegerung          | 20 s  | Audiogeraete und Taskleiste sind beim Anmelden oft noch nicht bereit |
-| `ExecutionTimeLimit`  | PT0S  | ohne das beendet Windows Fluneit nach drei Tagen Laufzeit |
-| Akku-Einstellungen    | aus   | auf Notebooks sonst kein Start bzw. Abbruch beim Umstecken |
-| Mehrfachstart         | IgnoreNew | kein zweiter Prozess, falls Fluneit schon laeuft |
-
-Adminrechte braucht das nicht. Nachsehen laesst sich das in der
-Aufgabenplanung (`taskschd.msc`) oder mit:
-
-```bash
-schtasks /query /TN Fluneit /FO LIST
-```
-
-Klappt die Aufgabe nicht, faellt Fluneit auf die Verknuepfung im
-Autostart-Ordner zurueck und erkennt dann auch, wenn Windows sie im
-Task-Manager deaktiviert hat (Registry-Zweig `StartupApproved`; erstes Byte 3
-= deaktiviert, 2 = erlaubt).
-
-Jeder Start schreibt seitdem eine Zeile ins Log - inklusive der Information,
-ob er von der Anmelde-Aufgabe kam (`--autostart`) oder von Hand. Damit laesst
-sich ein kuenftiges "startet nicht" nachvollziehen, statt zu raten. Das Log
-liegt unter `%LOCALAPPDATA%\Fluneit\fluneit.log`; der Programmordner dient nur
-noch als Rueckfall, weil eine dort beschaedigte Datei je nach startendem
-Prozess mal beschreibbar war und mal nicht - Meldungen verschwanden dadurch
-spurlos.
+Copyright © 2026 FynnXland

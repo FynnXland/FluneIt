@@ -50,7 +50,7 @@ else:
     from fluneit import linux_input
     from fluneit import linux_media
 
-__version__ = "1.17.0"
+__version__ = "2.0.0"
 
 # ----------------------------- Pfade & Konfiguration ------------------------
 

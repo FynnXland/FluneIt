@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an idea or an improvement.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: "Please describe the problem first. A clear problem is often more useful than a finished solution."
+  - type: textarea
+    id: problem
+    validations: {required: true}
+    attributes:
+      label: Problem
+      description: "What are you trying to do, and what makes it hard today?"
+  - type: textarea
+    id: proposal
+    validations: {required: true}
+    attributes:
+      label: Proposed solution
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: "My examples contain no real names or other personal data. Issues are public."
+          required: true
