@@ -1019,6 +1019,9 @@ def open_settings(root, page="allgemein"):
         _settings_window.focus_force()
         _settings_window.show_page(page)
         return _settings_window
+    # numpy/scipy schon jetzt im Hintergrund laden, damit die Effekte-Seite
+    # nicht beim ersten Oeffnen die Oberflaeche einfriert
+    core.fx_preload_async()
     _settings_window = SettingsWindow(root, page)
     return _settings_window
 
@@ -1462,6 +1465,22 @@ class SettingsWindow(tk.Toplevel):
     def _page_effekte(self, body):
         page_title(body, "Effekte")
         cfg = core.CONFIG
+
+        if not core.fx_ready():
+            core.fx_preload_async()
+            tk.Label(body, text="Effekte werden geladen …", bg=T.WINDOW, fg=T.SEC,
+                     font=F(13), anchor="w").pack(fill="x", pady=(8, 0))
+
+            def wait_ready(lbl=body):
+                if not lbl.winfo_exists():
+                    return                      # Seite wurde verlassen
+                t = core._fx_preload["thread"]
+                if core.fx_ready() or (t is not None and not t.is_alive()):
+                    self.show_page("effekte")
+                else:
+                    lbl.after(150, wait_ready)
+            body.after(150, wait_ready)
+            return
 
         if not core.fx_available():
             card = SettingsCard(body)

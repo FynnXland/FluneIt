@@ -827,6 +827,22 @@ else:
             return None
 
 
+_get_app_icon_uncached = get_app_icon
+_ICON_CACHE = {}
+
+
+def get_app_icon(exe_path, size=24):
+    """Programm-Icon (PIL-Bild oder None), zwischengespeichert. Der Mixer
+    fragt bei jedem Oeffnen alle Icons ab; aus der Shell kostet das je
+    App einige Millisekunden."""
+    key = (exe_path, size)
+    if key not in _ICON_CACHE:
+        if len(_ICON_CACHE) > 256:
+            _ICON_CACHE.clear()
+        _ICON_CACHE[key] = _get_app_icon_uncached(exe_path, size)
+    return _ICON_CACHE[key]
+
+
 def fallback_app_icon(letter, size=24, color="#4cc2ff"):
     ss = 4
     img = Image.new("RGBA", (size * ss, size * ss), (0, 0, 0, 0))
@@ -1307,6 +1323,8 @@ def _get_policy_config():
 
 
 if IS_WINDOWS:
+    _DEVICE_NAMES = {}
+
     def list_output_devices():
         """(dev_id, name)-Liste aller aktiven Wiedergabegeraete + aktuelle Standard-ID."""
         devenum = AudioUtilities.GetDeviceEnumerator()
@@ -1315,11 +1333,17 @@ if IS_WINDOWS:
         devices = []
         for i in range(coll.GetCount()):
             dev = coll.Item(i)
-            try:
-                name = AudioUtilities.CreateDevice(dev).FriendlyName
-            except Exception:
-                name = "Audiogeraet"
-            devices.append((dev.GetId(), name))
+            dev_id = dev.GetId()
+            # Der Anzeigename kostet pro Geraet einen Property-Store-Zugriff
+            # (zusammen ~70 ms) und aendert sich praktisch nie - also merken.
+            name = _DEVICE_NAMES.get(dev_id)
+            if name is None:
+                try:
+                    name = AudioUtilities.CreateDevice(dev).FriendlyName
+                except Exception:
+                    name = "Audiogeraet"
+                _DEVICE_NAMES[dev_id] = name
+            devices.append((dev_id, name))
         return devices, current
 
 
@@ -1361,6 +1385,25 @@ def fx_modules():
 
 def fx_available():
     return fx_modules()[0] is not None
+
+
+_fx_preload = {"thread": None}
+
+
+def fx_ready():
+    """Sind die Effekt-Bibliotheken schon geladen? Laedt selbst nichts."""
+    return "fx_engine" in sys.modules and "fx_dsp" in sys.modules
+
+
+def fx_preload_async():
+    """numpy/scipy in einem Hintergrund-Thread laden. Im UI-Thread friert
+    das die Oberflaeche beim ersten Oeffnen der Effekte-Seite mehrere
+    Sekunden ein (gemessen: 4,8 s)."""
+    if fx_ready() or _fx_preload["thread"] is not None:
+        return
+    t = threading.Thread(target=fx_modules, name="FluneitFxPreload", daemon=True)
+    _fx_preload["thread"] = t
+    t.start()
 
 
 def _fx_device_by_name(name):
@@ -1605,6 +1648,17 @@ def fx_shutdown():
 def pretty_name(exe_name):
     base = exe_name[:-4] if exe_name.lower().endswith(".exe") else exe_name
     return base[:1].upper() + base[1:]
+
+
+def warm_caches():
+    """Einmal kurz nach dem Start die Daten holen, die der Mixer braucht.
+    Danach oeffnet er ohne die Erstkosten (Geraetenamen, App-Icons)."""
+    try:
+        for e in collect_audio_apps().values():
+            get_app_icon(e.get("exe"), 32)
+        list_output_devices()
+    except Exception:
+        logging.debug("Vorwaermen fehlgeschlagen", exc_info=True)
 
 
 def process_events(root: tk.Tk, osd: OSD):
@@ -2821,7 +2875,16 @@ if IS_WINDOWS:
             return False
         return True
 
+    _autostart_cache = {"t": 0.0, "v": None}
+
     def autostart_enabled():
+        """Wie _autostart_enabled_now(), aber fuer ein paar Sekunden gemerkt."""
+        c = _autostart_cache
+        if c["v"] is None or time.monotonic() - c["t"] > 5.0:
+            c["v"], c["t"] = _autostart_enabled_now(), time.monotonic()
+        return c["v"]
+
+    def _autostart_enabled_now():
         """Startet Fluneit wirklich beim Anmelden? Prueft den Zustand und
         nicht bloss, ob eine Datei existiert - sonst zeigt die Oberflaeche
         einen aktivierten Schalter, obwohl Windows nichts startet."""
@@ -2847,10 +2910,17 @@ if IS_WINDOWS:
     def set_autostart(enabled):
         """Autostart ein-/ausschalten. Gibt zurueck, ob es geklappt hat -
         frueher schlug das still fehl und der Schalter sprang zurueck."""
+        _autostart_cache["v"] = None
+        try:
+            return _set_autostart(enabled)
+        finally:
+            _autostart_cache["v"] = None
+
+    def _set_autostart(enabled):
         if not enabled:
             rc, _out = _schtasks("/delete", "/TN", TASK_NAME, "/F")
             _remove_lnk()
-            ok = not autostart_enabled()
+            ok = not _autostart_enabled_now()
             if not ok:
                 logging.warning("Autostart liess sich nicht abschalten (rc=%s)", rc)
             return ok
@@ -3147,7 +3217,7 @@ def main():
             icon.stop()
         except Exception:
             pass
-        root.after(0, root.destroy)
+        _post_to_ui(root.quit)   # mainloop verlassen; aufgeraeumt wird im finally von main()
 
     restart_requested = []
 
@@ -3155,11 +3225,15 @@ def main():
         restart_requested.append(True)
         quit_app()
 
+    # Tray-Rueckrufe kommen aus dem Thread des Tray-Symbols. Tk darf nur aus
+    # dem Hauptthread angefasst werden, deshalb ueber die Ereignis-Queue
+    # (frueher root.after() direkt aus dem fremden Thread - das ist nicht
+    # threadsicher und konnte den Klick verzoegern).
     def open_mixer(icon_=None, item=None):
-        root.after(0, flyout.toggle)
+        _post_to_ui(flyout.toggle)
 
     def open_settings(icon_=None, item=None):
-        root.after(0, lambda: ui.open_settings(root))
+        _post_to_ui(lambda: ui.open_settings(root))
 
     try:
         icon = make_tray_icon(quit_app, restart_app, open_mixer, open_settings)
@@ -3173,6 +3247,7 @@ def main():
         root.after(600, lambda: ui.OnboardingWindow(root, onboarding_done))
 
     root.after(30, process_events, root, osd)
+    root.after(2500, warm_caches)
     root.after(200, watch_modifiers, root, osd)
     root.after(2000, rules_tick, root)
     if CONFIG.get("effekte_aktiv") and CONFIG.get("effekte_bruecke"):
