@@ -63,9 +63,17 @@ def app_dir():
 
 
 def data_dir():
-    """Beschreibbarer Ordner pro Benutzer - Rueckfallebene, wenn der
-    Programmordner nicht beschrieben werden kann (Program Files, defektes
-    Dateisystem, schreibgeschuetzter Stick)."""
+    """Ordner pro Benutzer fuer Einstellungen und Log.
+
+    FLUNEIT_HOME legt ihn ausdruecklich fest (eigener Ort, Tests) und
+    schaltet den portablen Modus ab."""
+    forced = os.environ.get("FLUNEIT_HOME")
+    if forced:
+        try:
+            os.makedirs(forced, exist_ok=True)
+            return forced
+        except OSError:
+            return None
     if IS_WINDOWS:
         base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
         d = os.path.join(base, "Fluneit")
@@ -91,7 +99,7 @@ def _initial_config_file():
     gilt der portable Modus und FluneIt benutzt diese Datei (fuer USB-Sticks
     und fuer Installationen, die schon so eingerichtet sind)."""
     portable = os.path.join(APP_DIR, "config.json")
-    if os.path.exists(portable):
+    if os.path.exists(portable) and not os.environ.get("FLUNEIT_HOME"):
         return portable
     d = data_dir()
     return os.path.join(d, "config.json") if d else portable
@@ -137,7 +145,8 @@ def setup_logging():
     d = data_dir()
     if d:
         candidates.append(os.path.join(d, "fluneit.log"))
-    candidates.append(LOG_FILE)
+    if not os.environ.get("FLUNEIT_HOME"):
+        candidates.append(LOG_FILE)
     for path in candidates:
         if not _log_path_usable(path):
             continue
@@ -244,8 +253,10 @@ def _write_config(cfg):
     global CONFIG_FILE
     paths = [CONFIG_FILE]
     d = data_dir()
-    for alt in ((os.path.join(d, "config.json") if d else None),
-                os.path.join(APP_DIR, "config.json")):
+    fallbacks = [os.path.join(d, "config.json") if d else None]
+    if not os.environ.get("FLUNEIT_HOME"):
+        fallbacks.append(os.path.join(APP_DIR, "config.json"))
+    for alt in fallbacks:
         if alt and alt not in paths:
             paths.append(alt)
     data = json.dumps(cfg, indent=2, ensure_ascii=False)
@@ -2776,7 +2787,10 @@ _LATEST_API = f"https://api.github.com/repos/{REPO}/releases/latest"
 def _version_tuple(v):
     """'v2.0.1' -> (2, 0, 1); Unlesbares -> ()."""
     parts = []
-    for p in str(v).strip().lstrip("vV").split("."):
+    # Vorabversionen und Build-Angaben ("-beta.1", "+abc") zaehlen nicht mit,
+    # sonst gaelte 2.1.0-beta.1 als neuer als 2.1.0
+    core = str(v).strip().lstrip("vV").split("-")[0].split("+")[0]
+    for p in core.split("."):
         num = "".join(ch for ch in p if ch.isdigit())
         if not num:
             break

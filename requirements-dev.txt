@@ -1,0 +1,5 @@
+# coding: utf-8
+# Development: runtime dependencies plus tests and the build tool.
+-r requirements.txt
+pytest>=9.0
+pyinstaller>=6.20

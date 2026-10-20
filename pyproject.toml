@@ -1,0 +1,5 @@
+# Tool configuration only. FluneIt is not an installable package; the version
+# lives in fluneit/app.py (__version__).
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

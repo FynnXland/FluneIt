@@ -1,25 +1,27 @@
-# Gemeinsam
-psutil
-pystray
-Pillow
+# coding: utf-8
+# Runtime dependencies. Lower bounds are the versions FluneIt is tested with.
 
-# Windows (WASAPI, WinRT-Medien)
-pycaw; sys_platform == 'win32'
-comtypes; sys_platform == 'win32'
-winrt-runtime; sys_platform == 'win32'
-winrt-Windows.Media.Control; sys_platform == 'win32'
-winrt-Windows.Foundation; sys_platform == 'win32'
-winrt-Windows.Storage.Streams; sys_platform == 'win32'
-winrt-Windows.Foundation.Collections; sys_platform == 'win32'
+# All platforms
+psutil>=7.0
+pystray>=0.19.5
+Pillow>=11.0
 
-# Linux (PipeWire/Pulse, X11, MPRIS)
+# Windows (WASAPI, Windows media controls)
+pycaw>=20251023; sys_platform == 'win32'
+comtypes>=1.4.16; sys_platform == 'win32'
+winrt-runtime>=3.2.1; sys_platform == 'win32'
+winrt-Windows.Media.Control>=3.2.1; sys_platform == 'win32'
+winrt-Windows.Foundation>=3.2.1; sys_platform == 'win32'
+winrt-Windows.Storage.Streams>=3.2.1; sys_platform == 'win32'
+winrt-Windows.Foundation.Collections>=3.2.1; sys_platform == 'win32'
+
+# Linux (experimental: PipeWire/PulseAudio, X11, MPRIS)
 pulsectl; sys_platform == 'linux'
 python-xlib; sys_platform == 'linux'
 dbus-next; sys_platform == 'linux'
 
-# Audio-Effekte (Equalizer, Rauschunterdrueckung). Nur noetig, wenn die
-# Effekte benutzt werden - ohne diese Pakete laeuft FluneIt normal weiter
-# und zeigt auf der Effekte-Seite einen Hinweis.
-numpy
-scipy
-sounddevice
+# Audio effects (equalizer, compressor). Without these packages FluneIt runs
+# normally and the effects page says what is missing.
+numpy>=2.2
+scipy>=1.16
+sounddevice>=0.5.1
