@@ -73,16 +73,6 @@ Das Tray-Flyout (Linksklick) enthält zusätzlich einen **Ausgabegerät-Wechsler
 (Standard-Wiedergabegerät per Klick umschalten). Beim ersten Start begrüßt ein
 dreistufiges Onboarding-Fenster.
 
-## Numpad-Hotkeys (Programme/Websites/Setups starten)
-
-**Strg + Numpad-Ziffer** löst frei belegbare Aktionen aus — unabhängig von
-Num-Lock (per Scancode erkannt). Verwaltung unter **Einstellungen → Hotkeys**:
-- **Programm / Website / Ordner** öffnen, **Befehl** ausführen,
-- **Setup** = mehrere Aktionen nacheinander (z. B. „Arbeits-Setup": IDE + Browser + Ordner).
-
-Beim Auslösen zeigt ein dezentes Overlay den Namen. Config-Feld `hotkeys`
-(`hotkeys_modifier` = `"strg"`/`"shift"`/`"alt"`).
-
 ## Konfiguration (`config.json`)
 
 ```json

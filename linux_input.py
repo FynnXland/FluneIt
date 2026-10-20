@@ -2,7 +2,7 @@
 
 Ersetzt den Windows-Low-Level-Hook (WH_KEYBOARD_LL). Statt alle Tasten
 mitzulesen, greifen wir gezielt die konfigurierten Kombinationen ab
-(XGrabKey): XF86Audio-Tasten + Modifier, Strg + Numpad, und - nur solange
+(XGrabKey): XF86Audio-Tasten + Modifier und - nur solange
 das Musik-Overlay sichtbar ist - Modifier + Pfeiltasten. Die Taste wird
 dadurch automatisch "geschluckt" (wie im Windows-Hook), waehrend die
 Lautstaerketasten OHNE Modifier unangetastet bleiben - dort regelt KDE
@@ -32,10 +32,6 @@ _XF86_LOWER = 0x1008FF11
 _XF86_MUTE = 0x1008FF12
 _XF86_RAISE = 0x1008FF13
 _XK_LEFT, _XK_RIGHT = 0xFF51, 0xFF53
-_XK_KP = {  # KP-Ziffern (NumLock an); Grab erfolgt per Keycode, gilt also immer
-    0xFFB0: "0", 0xFFB1: "1", 0xFFB2: "2", 0xFFB3: "3", 0xFFB4: "4",
-    0xFFB5: "5", 0xFFB6: "6", 0xFFB7: "7", 0xFFB8: "8", 0xFFB9: "9",
-}
 
 # NumLock (Mod2), CapsLock (Lock) und AltGr-Ebenen (Mod5) duerfen zusaetzlich
 # gedrueckt sein, ohne den Grab zu verfehlen -> alle Teilmengen mitgrabben.
@@ -74,9 +70,9 @@ class _GrabThread(threading.Thread):
 
     # ---- vom Tk-Thread aufrufbar ----
 
-    def update_bindings(self, funcs, hotkey_mod_vk, hotkey_digits):
+    def update_bindings(self, funcs):
         with self._lock:
-            self._pending = (list(funcs), hotkey_mod_vk, set(hotkey_digits))
+            self._pending = list(funcs)
         self._wake()
 
     def set_arrow_grab(self, active, mod_vks):
@@ -116,7 +112,7 @@ class _GrabThread(threading.Thread):
         self._by_key = {}
         self._arrow_grabbed = None
 
-    def _apply_bindings(self, funcs, hotkey_mod_vk, hotkey_digits):
+    def _apply_bindings(self, funcs):
         self._ungrab_all()
         # Lautstaerketasten + Modifier-Kombinationen
         for vkset, kind in funcs:
@@ -127,14 +123,6 @@ class _GrabThread(threading.Thread):
                                       (_XF86_MUTE, "mute")):
                 for kc in self._keycodes(keysym):
                     self._grab(kc, mask, ("vol", kind, direction))
-        # Strg (o. a.) + Numpad-Ziffern
-        hk_mask = _VK_TO_MASK.get(hotkey_mod_vk)
-        if hk_mask and hotkey_digits:
-            for keysym, digit in _XK_KP.items():
-                if digit not in hotkey_digits:
-                    continue
-                for kc in self._keycodes(keysym):
-                    self._grab(kc, hk_mask, ("hotkey", digit))
         # Pfeil-Grab-Zustand neu anwenden
         self._apply_arrows()
 
@@ -190,8 +178,6 @@ class _GrabThread(threading.Thread):
             name = self._VOL_EVENT.get(kind, {}).get(direction)
             if name:
                 self.queue.put(name)
-        elif tag == "hotkey":
-            self.queue.put("hotkey_" + payload[1])
         elif tag == "arrow":
             self.queue.put(payload[1])
 
@@ -211,7 +197,7 @@ class _GrabThread(threading.Thread):
                 pending, self._pending = self._pending, None
             if pending is not None:
                 try:
-                    self._apply_bindings(*pending)
+                    self._apply_bindings(pending)
                 except Exception:
                     logging.exception("Tasten-Grabs konnten nicht gesetzt werden")
             else:
@@ -251,9 +237,9 @@ def start(event_queue):
     return _thread
 
 
-def update_bindings(funcs, hotkey_mod_vk, hotkey_digits):
+def update_bindings(funcs):
     if _thread is not None:
-        _thread.update_bindings(funcs, hotkey_mod_vk, hotkey_digits)
+        _thread.update_bindings(funcs)
 
 
 def set_arrow_grab(active, mod_vks):

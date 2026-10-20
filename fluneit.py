@@ -12,7 +12,6 @@ Standardbelegung (frei konfigurierbar, s. DEFAULT_CONFIG):
   Shift + Alt + Rad      -> im Titel spulen
   Alt + Rad              -> die ausgewaehlte Musik-App (Pfeiltasten wechseln)
   Strg + Alt + Rad       -> Kommunikations-Apps (Discord, TeamSpeak, ...)
-  Strg + Numpad-Ziffer   -> frei belegbare Hotkeys
   Klick auf Tray-Symbol  -> Mixer (alle Apps mit Audio, Slider + Stumm)
 
 Das Overlay ist ein pixelgenauer Nachbau der Windows-11-Lautstaerkeanzeige und
@@ -164,12 +163,6 @@ DEFAULT_CONFIG = {
     #   {"app": "spotify.exe", "typ": "stumm"}
     #   {"app": "game.exe",    "typ": "ausschliessen"}
     "regeln": [],
-    # Strg + Numpad -> frei belegbare Aktionen. Jede Bindung:
-    #   {"taste": "1", "typ": "programm"|"website"|"ordner"|"befehl"|"setup",
-    #    "ziel": "<pfad/url/befehl>" oder (bei setup) [ {"typ","ziel"}, ... ],
-    #    "name": "Anzeigename"}
-    "hotkeys_modifier": "strg",
-    "hotkeys": [],
     # Kommunikations-Apps (Discord, TeamSpeak, ...) gemeinsam regeln
     "kommunikation_modifier": "strg+alt",
     "kommunikations_apps": ["discord.exe", "vesktop.exe", "ts3client_win64.exe",
@@ -330,19 +323,12 @@ def apply_config():
         unique.append((vkset, kind))
     unique.sort(key=lambda f: len(f[0]), reverse=True)
     HOOK_FUNCS = unique
-    global HOTKEYS_MODIFIER_VK, HOTKEYS_BY_DIGIT
-    HOTKEYS_MODIFIER_VK = _MODIFIER_VKS.get(str(CONFIG.get("hotkeys_modifier", "strg")).lower(), 0x11)
-    HOTKEYS_BY_DIGIT = {}
-    for h in CONFIG.get("hotkeys", []):
-        if isinstance(h, dict) and str(h.get("taste", "")) in "0123456789" and h.get("taste") != "":
-            HOTKEYS_BY_DIGIT[str(h["taste"])] = h
     rebuild_rules()
     if not IS_WINDOWS:
         # X11-Grabs an die neue Belegung anpassen (no-op, solange der
         # Grab-Thread noch nicht laeuft; main() ruft danach erneut auf)
         try:
-            linux_input.update_bindings(HOOK_FUNCS, HOTKEYS_MODIFIER_VK,
-                                        set(HOTKEYS_BY_DIGIT))
+            linux_input.update_bindings(HOOK_FUNCS)
         except Exception:
             logging.exception("Tasten-Grabs konnten nicht aktualisiert werden")
 
@@ -582,9 +568,6 @@ if IS_WINDOWS:
 
     # ----------------------------- Tastatur-Hook --------------------------------
     _VK_TO_EVENT = {VK_VOLUME_UP: "up", VK_VOLUME_DOWN: "down", VK_VOLUME_MUTE: "mute"}
-    # Numpad-Ziffern per Scancode (unabhaengig von NumLock; Nav-Cluster ist "extended")
-    _NUMPAD_SCAN = {0x52: "0", 0x4F: "1", 0x50: "2", 0x51: "3", 0x4B: "4",
-                    0x4C: "5", 0x4D: "6", 0x47: "7", 0x48: "8", 0x49: "9"}
 
 
     def _all_down(vkset):
@@ -603,13 +586,6 @@ if IS_WINDOWS:
                     and all(user32.GetAsyncKeyState(v) & 0x8000 for v in BG_MOD_VKS):
                 event_queue.put("bg_prev" if vk == 0x25 else "bg_next")
                 return 1
-            # Strg + Numpad-Ziffer -> belegte Aktion (Scancode + nicht-extended)
-            if HOTKEYS_MODIFIER_VK and not (kb.flags & 0x01):
-                digit = _NUMPAD_SCAN.get(kb.scanCode)
-                if digit is not None and digit in HOTKEYS_BY_DIGIT \
-                        and (user32.GetAsyncKeyState(HOTKEYS_MODIFIER_VK) & 0x8000):
-                    event_queue.put("hotkey_" + digit)
-                    return 1  # Zifferneingabe schlucken
             if vk in _VK_TO_EVENT:
                 ev = _VK_TO_EVENT[vk]
                 # spezifischste Kombi zuerst (HOOK_FUNCS ist danach sortiert)
@@ -1633,7 +1609,6 @@ def pretty_name(exe_name):
 
 def process_events(root: tk.Tk, osd: OSD):
     # Alle aufgelaufenen Rad-Ticks einsammeln und zusammenfassen
-    hotkey_digits = []
     delta = mic_delta = bg_delta = media_skip = media_seek = comm_delta = bg_switch = 0
     mute_toggle = mic_mute_toggle = bg_mute_toggle = media_play_toggle = sys_tick = False
     comm_mute_toggle = False
@@ -1690,8 +1665,6 @@ def process_events(root: tk.Tk, osd: OSD):
                 fx_requested = True
             elif ev == "fx_mic_toggle":
                 fx_mic_requested = True
-            elif isinstance(ev, str) and ev.startswith("hotkey_"):
-                hotkey_digits.append(ev[7:])
     except queue.Empty:
         pass
 
@@ -1713,12 +1686,6 @@ def process_events(root: tk.Tk, osd: OSD):
         elif CONFIG.get("modus_hinweis", True):
             osd.show_hint("Mikrofon-Effekte an" if ok else "Mikrofon-Effekte aus")
 
-    for d in hotkey_digits:
-        try:
-            run_hotkey(d, root, osd)
-        except Exception:
-            logging.exception("Hotkey %s fehlgeschlagen", d)
-
     for fn in ui_calls:
         try:
             fn()
@@ -1729,7 +1696,7 @@ def process_events(root: tk.Tk, osd: OSD):
     had_work = bool(ui_calls or delta or mic_delta or bg_delta or media_skip
                     or media_seek or sys_tick or mute_toggle or mic_mute_toggle
                     or bg_mute_toggle or media_play_toggle or comm_delta
-                    or comm_mute_toggle or bg_switch or hotkey_digits)
+                    or comm_mute_toggle or bg_switch)
     _idle_ticks = 0 if had_work else min(_idle_ticks + 1, 60)
 
     try:
@@ -2656,62 +2623,6 @@ def rules_tick(root: tk.Tk):
     root.after(4000, rules_tick, root)
 
 
-# ----------------------------- Numpad-Hotkeys -------------------------------
-
-def _run_action(typ, ziel):
-    """Fuehrt eine einzelne Aktion aus (im Worker-Thread aufgerufen)."""
-    typ = (typ or "").lower()
-    target = os.path.expandvars(str(ziel))
-    if typ in ("programm", "website", "ordner", "datei"):
-        if IS_WINDOWS:
-            os.startfile(target)  # Windows waehlt die passende App
-        elif typ == "programm" and not target.startswith(("http://", "https://")):
-            subprocess.Popen(target, shell=True, start_new_session=True)
-        else:
-            subprocess.Popen(["xdg-open", os.path.expanduser(target)],
-                             start_new_session=True)
-    elif typ == "befehl":
-        if IS_WINDOWS:
-            # ohne CREATE_NO_WINDOW blitzt bei jedem Befehls-Hotkey ein
-            # cmd-Fenster auf
-            subprocess.Popen(str(ziel), shell=True,
-                             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
-                             | subprocess.CREATE_NO_WINDOW)
-        else:
-            subprocess.Popen(str(ziel), shell=True, start_new_session=True)
-
-
-def run_hotkey(digit, root, osd):
-    h = HOTKEYS_BY_DIGIT.get(digit)
-    if not h:
-        return
-    name = h.get("name") or h.get("ziel") or f"Aktion {digit}"
-
-    def work():
-        try:
-            if (h.get("typ") or "").lower() == "setup":
-                for step in h.get("ziel") or []:
-                    if isinstance(step, dict):
-                        _run_action(step.get("typ"), step.get("ziel"))
-                        time.sleep(0.15)
-            else:
-                _run_action(h.get("typ"), h.get("ziel"))
-            _post_to_ui(lambda: _hotkey_feedback(root, osd, "\u25B6 " + str(name)))
-        except Exception:
-            logging.exception("Hotkey-Aktion fehlgeschlagen: %s", h)
-            _post_to_ui(lambda: _hotkey_feedback(root, osd, "Fehler: " + str(name)))
-
-    threading.Thread(target=work, daemon=True).start()
-
-
-def _hotkey_feedback(root, osd, text):
-    try:
-        osd.show_hint(text)
-        root.after(1400, osd.hide_hint)
-    except Exception:
-        pass
-
-
 # ----------------------------- Autostart ------------------------------------
 
 AUTOSTART_LABEL = "Mit Windows starten" if IS_WINDOWS else "Beim Anmelden starten"
@@ -3219,8 +3130,7 @@ def main():
         linux_input.start(event_queue)
         # Grabs mit der geladenen Konfiguration setzen (der Aufruf in
         # apply_config lief noch vor dem Thread-Start ins Leere)
-        linux_input.update_bindings(HOOK_FUNCS, HOTKEYS_MODIFIER_VK,
-                                    set(HOTKEYS_BY_DIGIT))
+        linux_input.update_bindings(HOOK_FUNCS)
 
     root = tk.Tk()
     root.withdraw()

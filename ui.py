@@ -926,7 +926,6 @@ NAV_ITEMS = [
     ("mixer", "mixer", "Mixer"),
     ("effekte", "speaker-2", "Effekte"),
     ("regeln", "rules", "Regeln"),
-    ("hotkeys", "apps", "Hotkeys"),
     ("ueber", "info", "Über"),
 ]
 
@@ -1065,7 +1064,7 @@ class SettingsWindow(tk.Toplevel):
         {"allgemein": self._page_allgemein, "steuerung": self._page_steuerung,
          "mixer": self._page_mixer, "effekte": self._page_effekte,
          "regeln": self._page_regeln,
-         "hotkeys": self._page_hotkeys,
+         
          "ueber": self._page_ueber}[pid](body)
 
     # --- Seite: Allgemein ---
@@ -1929,162 +1928,6 @@ class SettingsWindow(tk.Toplevel):
         dlg.finish()
 
     # --- Seite: Ueber ---
-    def _page_hotkeys(self, body):
-        cfg = core.CONFIG
-        head = tk.Frame(body, bg=T.WINDOW)
-        head.pack(fill="x")
-        tk.Label(head, text="Hotkeys", bg=T.WINDOW, fg=T.TEXT,
-                 font=F(20, semibold=True, display=True)).pack(side="left", pady=(4, 20))
-        PushButton(head, "Hotkey hinzufügen", icon="add", variant="primary",
-                   command=lambda: self._hotkey_dialog()).pack(side="right")
-
-        mod = {"strg": "Strg", "shift": "Shift", "alt": "Alt"}.get(
-            str(cfg.get("hotkeys_modifier", "strg")).lower(), "Strg")
-        tk.Label(body, text=f"{mod} + Numpad-Ziffer löst die belegte Aktion aus "
-                 "(funktioniert unabhängig von Num-Lock).", bg=T.WINDOW, fg=T.SEC,
-                 font=F(12), anchor="w", wraplength=500, justify="left").pack(fill="x", pady=(0, 12))
-
-        hotkeys = cfg.get("hotkeys", [])
-        card = tk.Frame(body, bg=T.CARD, highlightbackground=T.STROKE, highlightthickness=1)
-        card.pack(fill="x")
-        if not hotkeys:
-            EmptyState(card, "apps",
-                       "Noch keine Hotkeys. Belege Strg + Numpad mit Programmen, Websites, "
-                       "Ordnern, Befehlen – oder einem „Setup“, das mehrere auf einmal startet.",
-                       action=lambda pr: PushButton(pr, "Hotkey hinzufügen", icon="add",
-                            variant="primary", command=lambda: self._hotkey_dialog(), bg=T.CARD).pack(pady=(12, 0))
-                       ).pack(fill="x")
-            return
-        for i, h in enumerate(sorted(hotkeys, key=lambda x: str(x.get("taste", "")))):
-            if i:
-                tk.Frame(card, bg=T.STROKE, height=1).pack(fill="x", padx=8)
-            row = tk.Frame(card, bg=T.CARD)
-            row.pack(fill="x", padx=12, pady=8)
-            # Keycap "Num X"
-            cap = tk.Frame(row, bg=T.STROKE)
-            cap.pack(side="left", padx=(0, 12))
-            tk.Label(cap, text=f"Num {h.get('taste','?')}", bg=T.HOVER, fg=T.TEXT,
-                     font=F(12, semibold=True), padx=8, pady=4).pack(padx=1, pady=(1, 3))
-            txt = tk.Frame(row, bg=T.CARD)
-            txt.pack(side="left", fill="x", expand=True)
-            tk.Label(txt, text=h.get("name") or "(ohne Namen)", bg=T.CARD, fg=T.TEXT,
-                     font=F(13), anchor="w").pack(fill="x")
-            typ = (h.get("typ") or "").lower()
-            ziel = h.get("ziel")
-            detail = self.HK_TYPE_LABELS.get(typ, typ)
-            if typ != "setup" and isinstance(ziel, str):
-                detail += " · " + (ziel if len(ziel) < 48 else ziel[:47] + "…")
-            elif typ == "setup":
-                detail += f" · {len(ziel or [])} Schritte"
-            tk.Label(txt, text=detail, bg=T.CARD, fg=T.SEC, font=F(12), anchor="w").pack(fill="x")
-            IconButton(row, "delete", command=lambda hh=h: self._delete_hotkey(hh),
-                       bg=T.CARD).pack(side="right", padx=(4, 0))
-            IconButton(row, "edit", command=lambda hh=h: self._hotkey_dialog(hh),
-                       bg=T.CARD).pack(side="right")
-
-    def _delete_hotkey(self, h):
-        core.CONFIG["hotkeys"] = [x for x in core.CONFIG.get("hotkeys", []) if x is not h]
-        self.saved()
-        self.show_page("hotkeys")
-
-    def _hotkey_dialog(self, hk=None):
-        from tkinter import filedialog
-        dlg = Dialog(self, "Hotkey bearbeiten" if hk else "Hotkey hinzufügen", width=400)
-        used = {str(x.get("taste")) for x in core.CONFIG.get("hotkeys", []) if x is not hk}
-        free = [d for d in "0123456789" if d not in used]
-        state = {
-            "taste": str(hk["taste"]) if hk else (free[0] if free else "0"),
-            "typ": self.HK_TYPE_LABELS.get((hk.get("typ") or "").lower(), "Programm") if hk else "Programm",
-            "ziel": hk.get("ziel", "") if (hk and not isinstance(hk.get("ziel"), list)) else "",
-            "name": hk.get("name", "") if hk else "",
-        }
-
-        def field(label):
-            tk.Label(dlg.body, text=label, bg=T.CARD, fg=T.TEXT, font=F(13),
-                     anchor="w").pack(fill="x", pady=(6, 2))
-
-        field("Numpad-Taste")
-        keys = [state["taste"]] + [d for d in "0123456789" if d != state["taste"] and d not in used] \
-            if hk else (free or ["0"])
-        Dropdown(dlg.body, keys, lambda: state["taste"],
-                 lambda v: state.__setitem__("taste", v), width=120, bg=T.CARD).pack(anchor="w")
-
-        field("Aktion")
-        setup_note = tk.Label(dlg.body, text="", bg=T.CARD, fg=T.SEC, font=F(11),
-                              wraplength=340, justify="left", anchor="w")
-
-        def pick_typ(v):
-            state["typ"] = v
-            typ_dd.refresh()
-            is_setup = self.HK_TYPES[v] == "setup"
-            ziel_wrap.pack_forget()
-            setup_note.pack_forget()
-            if is_setup:
-                setup_note.config(text="„Setup“ startet mehrere Aktionen nacheinander. "
-                                  "Die Schritte legst du (vorerst) in der config.json fest "
-                                  "– Vorlage wird beim Speichern angelegt.")
-                setup_note.pack(fill="x", pady=(4, 0))
-            else:
-                ziel_wrap.pack(fill="x", pady=(4, 0))
-
-        typ_dd = Dropdown(dlg.body, list(self.HK_TYPES.keys()), lambda: state["typ"], pick_typ,
-                          width=180, bg=T.CARD)
-        typ_dd.pack(anchor="w")
-
-        ziel_wrap = tk.Frame(dlg.body, bg=T.CARD)
-        tk.Label(ziel_wrap, text="Ziel (Programm, URL, Ordner oder Befehl)", bg=T.CARD,
-                 fg=T.SEC, font=F(11), anchor="w").pack(fill="x")
-        zrow = tk.Frame(ziel_wrap, bg=T.CARD)
-        zrow.pack(fill="x")
-        zvar = tk.StringVar(value=state["ziel"])
-        zvar.trace_add("write", lambda *a: state.__setitem__("ziel", zvar.get()))
-        ent = tk.Entry(zrow, textvariable=zvar, bg=T.HOVER, fg=T.TEXT, insertbackground=T.TEXT,
-                       relief="flat", font=F(13))
-        ent.pack(side="left", fill="x", expand=True, ipady=5, padx=(0, 6))
-
-        def browse():
-            typ = self.HK_TYPES[state["typ"]]
-            path = (filedialog.askdirectory(parent=dlg) if typ == "ordner"
-                    else filedialog.askopenfilename(parent=dlg))
-            if path:
-                zvar.set(path)
-                if not state["name"]:
-                    nvar.set(os.path.splitext(os.path.basename(path))[0])
-        PushButton(zrow, "Durchsuchen", command=browse, bg=T.CARD).pack(side="right")
-
-        field("Name (Anzeige im Overlay)")
-        nvar = tk.StringVar(value=state["name"])
-        nvar.trace_add("write", lambda *a: state.__setitem__("name", nvar.get()))
-        tk.Entry(dlg.body, textvariable=nvar, bg=T.HOVER, fg=T.TEXT, insertbackground=T.TEXT,
-                 relief="flat", font=F(13)).pack(fill="x", ipady=5, pady=(2, 0))
-
-        pick_typ(state["typ"])
-
-        def confirm():
-            typ = self.HK_TYPES[state["typ"]]
-            new = {"taste": state["taste"], "typ": typ, "name": state["name"].strip()}
-            if typ == "setup":
-                new["ziel"] = hk.get("ziel") if (hk and isinstance(hk.get("ziel"), list)) else [
-                    {"typ": "programm", "ziel": "C:\\Pfad\\zu\\Programm.exe"},
-                    {"typ": "website", "ziel": "https://example.com"}]
-            else:
-                new["ziel"] = state["ziel"].strip()
-            hks = core.CONFIG.setdefault("hotkeys", [])
-            # gleiche Taste ersetzen
-            hks[:] = [x for x in hks if x is hk or str(x.get("taste")) != state["taste"]]
-            if hk is not None and hk in hks:
-                hks[hks.index(hk)] = new
-            else:
-                hks.append(new)
-            dlg.destroy()
-            self.saved()
-            self.show_page("hotkeys")
-
-        PushButton(dlg.actions, "Speichern" if hk else "Hinzufügen", variant="primary",
-                   command=confirm, bg=T.CARD).pack(side="left")
-        PushButton(dlg.actions, "Abbrechen", command=dlg.destroy, bg=T.CARD).pack(side="left", padx=8)
-        dlg.finish()
-
     def _page_ueber(self, body):
         page_title(body, "Über")
         card = tk.Frame(body, bg=T.CARD, highlightbackground=T.STROKE, highlightthickness=1)
