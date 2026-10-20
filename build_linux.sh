@@ -19,7 +19,6 @@ $PY -m PyInstaller \
     --hidden-import linux_tray \
     --hidden-import PIL._tkinter_finder \
     --hidden-import ui \
-    --hidden-import obs_bridge \
     fluneit.py
 
 mv -f dist/fluneit ./fluneit-linux

@@ -1236,39 +1236,6 @@ def resource_path(*parts):
     return os.path.join(base, *parts)
 
 
-def audible_apps():
-    """Apps, die GERADE hoerbar Ton ausgeben (Pegel > 0), pro Prozess gebuendelt.
-    Fuer die OBS-'Rest'-Funktion: nur echte Tonquellen, kein Hintergrundrauschen.
-    Linux: Pegel sind ueber Pulse nicht ohne eigenen Stream abfragbar - dort
-    zaehlen alle nicht stummen Streams als hoerbar."""
-    apps = {}
-    try:
-        for s in get_all_audio_sessions():
-            if s.Process is None:
-                continue
-            try:
-                name = s.Process.name()
-            except psutil.Error:
-                continue
-            key = _norm(name)
-            e = apps.setdefault(key, {"name": pretty_name(name), "pid": s.Process.pid, "peak": 0.0})
-            if not IS_WINDOWS:
-                try:
-                    if not s.SimpleAudioVolume.GetMute():
-                        e["peak"] = 1.0
-                except Exception:
-                    pass
-                continue
-            try:
-                meter = s._ctl.QueryInterface(IAudioMeterInformation)
-                e["peak"] = max(e["peak"], meter.GetPeakValue())
-            except Exception:
-                continue
-    except Exception:
-        logging.exception("Pegel-Abfrage fehlgeschlagen")
-    return {k: v for k, v in apps.items() if v["peak"] > 0.0005}
-
-
 def collect_audio_apps():
     """Alle Apps mit aktiven Audio-Sessions, gebuendelt pro Prozessname."""
     apps = {}

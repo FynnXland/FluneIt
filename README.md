@@ -73,27 +73,6 @@ Das Tray-Flyout (Linksklick) enthält zusätzlich einen **Ausgabegerät-Wechsler
 (Standard-Wiedergabegerät per Klick umschalten). Beim ersten Start begrüßt ein
 dreistufiges Onboarding-Fenster.
 
-## Streaming (per-App-Audio ohne Treiber)
-
-Für Streamer trennt Fluneit App-Audio **ohne** virtuelle Audiogeräte/Treiber:
-Über die Seite **Einstellungen → Streaming** legt es in OBS pro App eine
-„Anwendungs-Audioaufnahme“ an (WASAPI Process-Loopback, ab Win 10 2004 /
-OBS 28). Jede App (Spotify, Spiel, Discord, Browser) wird so zu einer eigenen
-OBS-Audiospur – kein Geräte-Manager-Ballast, nichts in der Windows-Sound-Liste.
-
-Bereits angelegte Quellen werden erkannt (Badge „In OBS ✓“ + „Entfernen“), sodass nichts doppelt entsteht. Für „alles außer der angelegten App“ legt Fluneit pro weiterer hörbarer App eine eigene Quelle an – einen echten „alles außer“-Modus hat OBS nicht (das bräuchte ein virtuelles Gerät).
-
-Fluneit erkennt den OBS-Zustand (installiert / läuft / obs-websocket aktiv /
-erreichbar), kann den obs-websocket-Server auf Wunsch aktivieren (OBS
-geschlossen) und legt die Quelle per Klick an ([obs_bridge.py](obs_bridge.py),
-eigener minimaler WebSocket-Client, keine Fremdbibliothek). Fallback: eine
-Schritt-für-Schritt-Anleitung für die manuelle Einrichtung in OBS.
-
-Bewusste Entscheidung gegen einen eigenen Kernel-Audiotreiber: Der bräuchte
-Microsoft-Signierung (EV-Zertifikat + Partner Center), wäre monatelange
-Spezialarbeit und würde Windows genau mit den virtuellen Geräten überladen,
-die vermieden werden sollen. Process-Loopback löst das Ziel nativ.
-
 ## Numpad-Hotkeys (Programme/Websites/Setups starten)
 
 **Strg + Numpad-Ziffer** löst frei belegbare Aktionen aus — unabhängig von
