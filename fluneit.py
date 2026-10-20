@@ -180,6 +180,7 @@ DEFAULT_CONFIG = {
     "effekte_ausgabe": "",          # echtes Ausgabegeraet (Kopfhoerer)
     "effekte_latenz": "mittel",     # niedrig | mittel | sicher
     "effekte": {},                  # Parametersatz, s. fx_dsp.FxChain
+    "effekte_eigene": [],           # eigene Presets: [{"name", "werte"}]
     "effekte_wiederherstellen": "", # Geraet, das nach dem Stopp zurueck muss
     "effekte_mikrofon_aktiv": False,
     "effekte_mikrofon_quelle": "",
@@ -1526,11 +1527,44 @@ def fx_stop():
     with _fx_lock:
         engine = _fx_engine
         _fx_engine = None
+    _fx_bypass["an"] = False
     if engine is not None:
         engine.stop()          # on_stop stellt das Geraet zurueck
     fx_restore_device("Stopp")  # zur Sicherheit auch, wenn on_stop ausfiel
     CONFIG["effekte_aktiv"] = False
     save_config()
+
+
+def fx_suggest_devices():
+    """Vorschlag fuer die Einrichtung: (Ausgabegeraete, vorgeschlagenes Ziel,
+    vorgeschlagene Bruecke). Ziel = das Geraet, auf dem gerade der Ton
+    laeuft; Bruecke = ein anderer Ausgang, an dem typischerweise nichts
+    haengt (s. fx_engine.bridge_candidates)."""
+    _dsp, fx_engine = fx_modules()
+    try:
+        devices, current = list_output_devices()
+    except Exception:
+        devices, current = [], None
+    names = [n for _i, n in devices]
+    target = next((n for i, n in devices if i == current), names[0] if names else "")
+    bridge = ""
+    if fx_engine is not None:
+        try:
+            for c in fx_engine.bridge_candidates(exclude_name=target):
+                if c["name"] in names and c["name"] != target:
+                    bridge = c["name"]
+                    break
+        except Exception:
+            logging.debug("Brueckenvorschlag fehlgeschlagen", exc_info=True)
+    if not bridge:
+        bridge = next((n for n in names if n != target), "")
+    return names, target, bridge
+
+
+def fx_configured():
+    b = CONFIG.get("effekte_bruecke") or ""
+    o = CONFIG.get("effekte_ausgabe") or ""
+    return bool(b and o and b.lower() != o.lower())
 
 
 def fx_running():
@@ -1545,11 +1579,30 @@ def fx_toggle():
     return fx_start()
 
 
+_fx_bypass = {"an": False}
+
+
+def fx_bypassed():
+    return _fx_bypass["an"]
+
+
+def fx_set_bypass(on):
+    """Effekte kurz umgehen, um den Unterschied zu hoeren. Die Bruecke laeuft
+    weiter (kein Umschalten des Geraets, kein Knacken); nur der
+    Schutzlimiter bleibt aktiv."""
+    _fx_bypass["an"] = bool(on)
+    fx_apply_params()
+
+
 def fx_apply_params():
     """Geaenderte Werte an die laufende Kette geben (ohne Neustart)."""
     e = _fx_engine
     if e is not None and e.running:
-        e.set_params(fx_params())
+        if _fx_bypass["an"]:
+            p = fx_params()
+            e.set_params({"limiter_db": p.get("limiter_db", -1.0)})
+        else:
+            e.set_params(fx_params())
 
 
 def fx_status():

@@ -9,6 +9,7 @@ des Design-Projekts. Fonts: Segoe UI Variable (negativ = Pixelgroessen in Tk).
 """
 
 import ctypes
+import json
 import logging
 import math
 import os
@@ -1462,6 +1463,15 @@ class SettingsWindow(tk.Toplevel):
                     self, ev.x_root, ev.y_root, [("Im Mixer ausblenden", on_hide)]))
 
     # --- Seite: Effekte ---
+    # Aufbau: Hauptschalter (+ Vergleichen) · Klang (Preset, Equalizer,
+    # Feinschliff) · Dynamik · Audioweg · Mikrofon. Rauschunterdrueckung und
+    # Noise Gate gibt es nur fuers Mikrofon: auf Spielton angewendet wuerden
+    # sie gerade die leisen Geraeusche schlucken, um die es beim Zocken geht.
+
+    EQ_HILFE = ("60–150 Hz: Bass, Explosionen, Motoren  ·  400 Hz–1 kHz: Körper, "
+                "Stimmen  ·  2,5–6 kHz: Schritte, Nachladen, Details  ·  "
+                "12 kHz: Luft, Zischen")
+
     def _page_effekte(self, body):
         page_title(body, "Effekte")
         cfg = core.CONFIG
@@ -1501,13 +1511,27 @@ class SettingsWindow(tk.Toplevel):
             self.saved()
             core.fx_apply_params()
 
+        intro = tk.Frame(body, bg=T.WINDOW)
+        intro.pack(fill="x", pady=(0, 10))
+        tk.Label(intro, text="Equalizer und Kompressor für alles, was du hörst – "
+                             "Spiel, Chat und Musik.",
+                 bg=T.WINDOW, fg=T.SEC, font=F(12), anchor="w").pack(side="left")
+        link = tk.Label(intro, text="So funktioniert's", bg=T.WINDOW, fg=T.ACCENT,
+                        font=F(12), cursor="hand2")
+        link.pack(side="right")
+        link.bind("<Button-1>", lambda e: self._fx_help_dialog())
+
         # -- Hauptschalter ------------------------------------------------
         st = core.fx_status()
+        running = bool(st.get("laeuft"))
         card = SettingsCard(body)
         card.pack(fill="x")
 
         def master_ctl(ctl):
             def change(v):
+                if v and not core.fx_configured():
+                    self._fx_setup_dialog()
+                    return
                 if v:
                     ok, why = core.fx_start()
                     self.toast.show("Effekte an" if ok
@@ -1518,12 +1542,13 @@ class SettingsWindow(tk.Toplevel):
                 self.show_page("effekte")
             Toggle(ctl, core.fx_running, change, bg=T.CARD).pack()
 
-        running = bool(st.get("laeuft"))
-        card.row("speaker-2", "Effekte aktiv",
-                 (f"Läuft – {st.get('quelle', '')} → {st.get('ziel', '')}"
-                  if running else
-                  "Legt Equalizer und Effekte auf alles, was der PC ausgibt"),
-                 master_ctl)
+        if running:
+            desc = f"Läuft: {st.get('quelle', '')} → {st.get('ziel', '')}"
+        elif core.fx_configured():
+            desc = "Aus – Windows spielt direkt auf dein Ausgabegerät"
+        else:
+            desc = "Beim ersten Einschalten richtet ein kurzer Dialog alles ein"
+        card.row("speaker-2", "Effekte", desc, master_ctl)
 
         if running:
             status_lbl = {}
@@ -1535,7 +1560,6 @@ class SettingsWindow(tk.Toplevel):
                 status_lbl["bar"] = bar
 
             row = card.row("info", "Status", "…", status_ctl)
-            # Zeile suchen, deren Beschreibungstext wir laufend ersetzen
             for w in _descendants(row):
                 if isinstance(w, tk.Label) and w.cget("text") == "…":
                     status_lbl["txt"] = w
@@ -1553,46 +1577,90 @@ class SettingsWindow(tk.Toplevel):
                 if txt is not None and txt.winfo_exists():
                     txt.config(text=f"≈{s.get('latenz_ms', 0):.0f} ms Verzögerung · "
                                     f"{s.get('last', 0):.0f} % Rechenlast · "
-                                    f"{s.get('aussetzer', 0)} Aussetzer · "
-                                    f"{s.get('abtastrate', 0)} Hz")
+                                    f"{s.get('aussetzer', 0)} Aussetzer")
                 bar.after(250, tick)
 
             tick()
+
+            def bypass_ctl(ctl):
+                def change(v):
+                    core.fx_set_bypass(v)
+                    self.toast.show("Effekte umgangen" if v else "Effekte wieder an")
+                Toggle(ctl, core.fx_bypassed, change, bg=T.CARD).pack()
+
+            card.row("refresh", "Vergleichen",
+                     "Effekte kurz umgehen, um den Unterschied zu hören", bypass_ctl)
         elif st.get("fehler"):
             card.row("close", "Letzter Fehler", str(st["fehler"])[:120])
 
         # -- Klang --------------------------------------------------------
         section_title(body, "Klang")
+        own = [p for p in cfg.get("effekte_eigene", []) if isinstance(p, dict)
+               and p.get("name")]
+        labels = {}                       # Anzeigename -> ("preset"|"eigen", schluessel)
+        for k, v in fx_dsp.PRESETS.items():
+            labels[v["name"]] = ("preset", k)
+        for p in own:
+            labels["★ " + p["name"]] = ("eigen", p["name"])
+        sel = fx.get("voreinstellung", "")
+        if sel.startswith("eigen:"):
+            cur_label = "★ " + sel[6:]
+            beschreibung = "Dein eigenes Preset"
+        elif sel in fx_dsp.PRESETS:
+            cur_label = fx_dsp.PRESETS[sel]["name"]
+            beschreibung = fx_dsp.PRESETS[sel]["beschreibung"]
+        else:
+            cur_label = "Eigene Einstellung"
+            beschreibung = ("Von Hand eingestellt. Als Preset speichern, um "
+                            "darauf zurückzukommen.")
 
         pcard = SettingsCard(body)
         pcard.pack(fill="x")
-        preset_names = {k: v["name"] for k, v in fx_dsp.PRESETS.items()}
-        rev = {v: k for k, v in preset_names.items()}
 
         def preset_ctl(ctl):
             def change(label):
-                key = rev.get(label)
-                if not key:
+                kind, key = labels.get(label, (None, None))
+                if kind == "preset":
+                    neu = fx_dsp.preset_params(key)
+                    # Preset-Kurve auf die sieben Regler abbilden, damit man
+                    # sieht, was es tut, und von dort weiterdrehen kann
+                    neu["baender"] = fx_dsp.bands_to_ui(neu.get("baender"))
+                elif kind == "eigen":
+                    p = next((x for x in own if x["name"] == key), None)
+                    if p is None:
+                        return
+                    neu = dict(p.get("werte") or {})
+                    neu["voreinstellung"] = "eigen:" + key
+                else:
                     return
-                neu = fx_dsp.preset_params(key)
-                # Preset-Kurve auf die sieben Regler abbilden: so zeigt die
-                # Anzeige, was das Preset tut, und man kann von dort
-                # weiterdrehen, statt ein fremdes Bandraster vorzufinden.
-                neu["baender"] = fx_dsp.bands_to_ui(neu.get("baender"))
+                if not neu.get("baender"):
+                    neu["baender"] = fx_dsp.default_bands()
                 cfg["effekte"] = neu
                 save_and_apply()
                 self.show_page("effekte")
-            cur = preset_names.get(fx.get("voreinstellung", "neutral"), "Neutral")
-            Dropdown(ctl, list(preset_names.values()), lambda: cur, change,
-                     width=172, bg=T.CARD).pack()
+            Dropdown(ctl, list(labels), lambda: cur_label, change,
+                     width=210, bg=T.CARD).pack()
 
-        key_now = fx.get("voreinstellung", "")
-        pcard.row("apps", "Voreinstellung",
-                  fx_dsp.PRESETS.get(key_now, {}).get(
-                      "beschreibung", "Fertige Klangprofile als Startpunkt"),
-                  preset_ctl)
+        pcard.row("apps", "Preset", beschreibung, preset_ctl)
 
-        # Equalizer-Streifen
+        def own_ctl(ctl):
+            PushButton(ctl, "Speichern", icon="add", bg=T.CARD,
+                       command=self._fx_save_preset_dialog).pack(side="left")
+            if sel.startswith("eigen:"):
+                def delete():
+                    name = sel[6:]
+                    cfg["effekte_eigene"] = [x for x in own if x["name"] != name]
+                    fx["voreinstellung"] = ""
+                    self.saved()
+                    self.toast.show(f"„{name}“ gelöscht")
+                    self.show_page("effekte")
+                IconButton(ctl, "delete", command=delete, bg=T.CARD).pack(
+                    side="left", padx=(6, 0))
+
+        pcard.row("document", "Eigene Presets",
+                  "Die aktuelle Einstellung unter einem Namen merken", own_ctl)
+
+        # Equalizer
         eqcard = tk.Frame(body, bg=T.CARD, highlightbackground=T.STROKE,
                           highlightthickness=1)
         eqcard.pack(fill="x", pady=(8, 0))
@@ -1600,7 +1668,7 @@ class SettingsWindow(tk.Toplevel):
         head.pack(fill="x", padx=16, pady=(12, 0))
         tk.Label(head, text="Equalizer", bg=T.CARD, fg=T.TEXT,
                  font=F(13)).pack(side="left")
-        tk.Label(head, text="  ziehen · Doppelklick setzt zurück",
+        tk.Label(head, text="  ziehen · Mausrad · Doppelklick = 0 dB",
                  bg=T.CARD, fg=T.DIS, font=F(11)).pack(side="left")
 
         def flat():
@@ -1618,8 +1686,13 @@ class SettingsWindow(tk.Toplevel):
             save_and_apply()
 
         strip = EqStrip(eqcard, fx["baender"], eq_changed, height=180, bg=T.CARD)
-        strip.pack(fill="x", padx=12, pady=(6, 12))
+        strip.pack(fill="x", padx=12, pady=(6, 4))
         strip.after(30, strip.redraw)
+        hint = tk.Label(eqcard, text=self.EQ_HILFE, bg=T.CARD, fg=T.DIS, font=F(11),
+                        justify="left", anchor="w", wraplength=440)
+        hint.pack(fill="x", padx=16, pady=(0, 12))
+        hint.bind("<Configure>", lambda e, l=hint: l.configure(
+            wraplength=max(200, e.width)))
 
         gcard = SettingsCard(body)
         gcard.pack(fill="x", pady=(8, 0))
@@ -1627,13 +1700,14 @@ class SettingsWindow(tk.Toplevel):
         def pre_ctl(ctl):
             def change(v):
                 fx["vorverstaerkung_db"] = float(v)
+                fx["voreinstellung"] = ""
                 save_and_apply()
             Stepper(ctl, lambda: int(fx.get("vorverstaerkung_db", 0)), change,
                     -12, 12, 1, " dB", bg=T.CARD).pack()
 
         gcard.row("mixer", "Vorverstärkung",
-                  "Ausgleich, wenn der Equalizer laut anhebt (negativ = leiser)",
-                  pre_ctl)
+                  "Hebt der Equalizer stark an, hier etwas zurücknehmen – "
+                  "sonst greift der Schutzlimiter", pre_ctl)
 
         def hp_ctl(ctl):
             def change(v):
@@ -1644,71 +1718,65 @@ class SettingsWindow(tk.Toplevel):
                     0, 300, 10, " Hz", bg=T.CARD).pack()
 
         gcard.row("speaker-0", "Rumpelfilter",
-                  "Schneidet alles unterhalb dieser Frequenz weg (0 = aus)",
-                  hp_ctl)
+                  "Schneidet alles unterhalb dieser Frequenz ab (0 = aus)", hp_ctl)
 
-        # -- Dynamik & Rauschen -------------------------------------------
-        section_title(body, "Dynamik & Rauschen")
+        # -- Dynamik ------------------------------------------------------
+        section_title(body, "Dynamik")
         dcard = SettingsCard(body)
         dcard.pack(fill="x")
 
-        def toggle_row(icon, title, desc, key):
-            def ctl(c):
-                def change(v):
-                    fx[key] = bool(v)
-                    fx["voreinstellung"] = ""
-                    save_and_apply()
-                    self.show_page("effekte")
-                Toggle(c, lambda: bool(fx.get(key, False)), change, bg=T.CARD).pack()
-            dcard.row(icon, title, desc, ctl)
+        def comp_ctl(c):
+            def change(v):
+                fx["kompressor"] = bool(v)
+                fx.setdefault("kompressor_werte", {})
+                fx["voreinstellung"] = ""
+                save_and_apply()
+                self.show_page("effekte")
+            Toggle(c, lambda: bool(fx.get("kompressor", False)), change,
+                   bg=T.CARD).pack()
 
-        toggle_row("mixer", "Kompressor",
-                   "Macht Laute leiser und Leises hörbarer – Explosionen "
-                   "reißen nicht mehr, Schritte gehen nicht unter", "kompressor")
+        dcard.row("mixer", "Kompressor",
+                  "Laute Stellen werden leiser, leise lauter. Explosionen reißen "
+                  "nicht mehr, Schritte gehen nicht unter", comp_ctl)
 
-        toggle_row("mic", "Rauschunterdrückung",
-                   "Filtert gleichmäßiges Rauschen heraus. Kostet etwas "
-                   "Verzögerung – fürs Mikrofon sinnvoller als für Musik",
-                   "rauschunterdrueckung")
+        if fx.get("kompressor"):
+            # Ein Regler statt fuenf Fachbegriffen: 0 = sanft, 1 = kraeftig.
+            # Daraus werden Schwelle, Verhaeltnis und Ausgleich abgeleitet.
+            cw = fx.setdefault("kompressor_werte", {})
 
-        if fx.get("rauschunterdrueckung"):
-            def strength_ctl(ctl):
-                def change(v):
-                    fx["rausch_staerke"] = round(float(v), 2)
-                    save_and_apply()
-                Slider(ctl, lambda: float(fx.get("rausch_staerke", 0.8)), change,
-                       width=130, bg=T.CARD).pack()
-            dcard.row("mixer", "Stärke der Rauschunterdrückung",
-                      "Zu hoch klingt blechern", strength_ctl)
+            def amount():
+                ratio = float(cw.get("verhaeltnis", 2.5))
+                return max(0.0, min(1.0, (ratio - 1.5) / 6.5))
 
-        toggle_row("mute", "Noise Gate",
-                   "Schaltet unter einer Schwelle ganz ab – gegen Grundrauschen "
-                   "in Pausen", "noise_gate")
+            def set_amount(v):
+                v = max(0.0, min(1.0, float(v)))
+                cw["verhaeltnis"] = round(1.5 + 6.5 * v, 2)
+                cw["schwelle_db"] = round(-14.0 - 20.0 * v, 1)
+                cw["ausgleich_db"] = round(1.0 + 6.0 * v, 1)
+                cw.setdefault("attack_ms", 6.0)
+                cw.setdefault("release_ms", 140.0)
+                fx["voreinstellung"] = ""
+                save_and_apply()
+
+            def amount_ctl(c):
+                Slider(c, amount, set_amount, width=140, bg=T.CARD).pack()
+
+            dcard.row("speaker-1", "Stärke",
+                      "Links sanft, rechts kräftig. Kräftig hilft nachts, "
+                      "klingt aber flacher", amount_ctl)
 
         # -- Audioweg -----------------------------------------------------
         section_title(body, "Audioweg")
-        info = tk.Label(
-            body,
-            text="Fluneit legt sich als Zwischenstation in den Ton: Windows spielt "
-                 "auf ein Gerät, das niemand hört (die Brücke), Fluneit nimmt das "
-                 "auf, legt die Effekte darauf und gibt es auf deinen Kopfhörern "
-                 "aus. Dafür braucht es keinen Treiber. Beim Ausschalten wird "
-                 "alles zurückgestellt.",
-            bg=T.WINDOW, fg=T.SEC, font=F(12), wraplength=470, justify="left",
-            anchor="w")
-        info.pack(fill="x", pady=(0, 8))
-
         wcard = SettingsCard(body)
         wcard.pack(fill="x")
-        try:
-            devices, _cur = core.list_output_devices()
-        except Exception:
-            devices = []
-        names = [n for _i, n in devices]
+        names, _sug_target, sug_bridge = core.fx_suggest_devices()
 
         def dev_ctl(key, exclude_key):
             def ctl(c):
                 def change(v):
+                    if core.fx_running():
+                        core.fx_stop()
+                        self.toast.show("Effekte aus – Gerät geändert")
                     cfg[key] = v
                     self.saved()
                     self.show_page("effekte")
@@ -1716,42 +1784,33 @@ class SettingsWindow(tk.Toplevel):
                         if n.lower() != str(cfg.get(exclude_key, "")).lower()]
                 Dropdown(c, opts or ["(kein Gerät)"],
                          lambda: cfg.get(key) or "(nicht gewählt)", change,
-                         width=186, bg=T.CARD).pack()
+                         width=210, bg=T.CARD).pack()
             return ctl
 
-        sugg = ""
-        try:
-            cands = fx_engine.bridge_candidates(exclude_name=cfg.get("effekte_ausgabe"))
-            if cands:
-                sugg = cands[0]["name"]
-        except Exception:
-            pass
-
         wcard.row("headphones", "Ausgabegerät",
-                  "Wo du wirklich zuhörst – hierauf gibt Fluneit aus",
-                  dev_ctl("effekte_ausgabe", "effekte_bruecke"))
+                  "Wo du wirklich zuhörst", dev_ctl("effekte_ausgabe", "effekte_bruecke"))
         wcard.row("speaker-0", "Brücke",
-                  ("Gerät, auf das Windows spielt. Am besten ein Ausgang, an dem "
-                   "nichts hängt" + (f" – Vorschlag: {sugg}" if sugg else "")),
+                  "Ein Ausgang, an dem nichts hängt. Windows spielt dorthin, "
+                  "solange die Effekte an sind"
+                  + (f" (Vorschlag: {sug_bridge})" if sug_bridge else ""),
                   dev_ctl("effekte_bruecke", "effekte_ausgabe"))
 
         def lat_ctl(ctl):
             modes = fx_engine.LATENCY_MODES
-            labels = {k: v["name"] for k, v in modes.items()}
-            rv = {v: k for k, v in labels.items()}
+            lab = {k: v["name"] for k, v in modes.items()}
+            rv = {v: k for k, v in lab.items()}
 
             def change(label):
                 cfg["effekte_latenz"] = rv.get(label, "mittel")
                 self.saved()
                 if core.fx_running():
                     self.toast.show("Wirkt nach dem nächsten Einschalten")
-            cur = labels.get(cfg.get("effekte_latenz", "mittel"), "Mittel (empfohlen)")
-            Dropdown(ctl, list(labels.values()), lambda: cur, change,
-                     width=172, bg=T.CARD).pack()
+            cur = lab.get(cfg.get("effekte_latenz", "mittel"), "Mittel (empfohlen)")
+            Dropdown(ctl, list(lab.values()), lambda: cur, change,
+                     width=210, bg=T.CARD).pack()
 
         wcard.row("info", "Verzögerung",
-                  "Niedriger reagiert schneller, kann aber knacken. "
-                  "Beim Zocken „Niedrig“ probieren", lat_ctl)
+                  "Beim Zocken „Niedrig“. Knackt es, eine Stufe höher", lat_ctl)
 
         # -- Mikrofon -----------------------------------------------------
         section_title(body, "Mikrofon")
@@ -1759,10 +1818,13 @@ class SettingsWindow(tk.Toplevel):
         mcard.pack(fill="x")
         mfx = cfg.setdefault("effekte_mikrofon", {})
         mst = core.fx_mic_status()
+        cable = next((n for n in names if "cable input" in n.lower()), "")
 
         def mic_master_ctl(ctl):
             def change(v):
                 if v:
+                    if not cfg.get("effekte_mikrofon_ausgabe") and cable:
+                        cfg["effekte_mikrofon_ausgabe"] = cable
                     ok, why = core.fx_mic_start()
                     if not ok:
                         self.toast.show(why[:60])
@@ -1774,7 +1836,7 @@ class SettingsWindow(tk.Toplevel):
         mcard.row("mic", "Mikrofon bearbeiten",
                   (f"Läuft – ≈{mst.get('latenz_ms', 0):.0f} ms, "
                    f"{mst.get('last', 0):.0f} % Last" if mst.get("laeuft") else
-                   "Rauschunterdrückung und Klangkorrektur für dein Mikrofon"),
+                   "Rauschunterdrückung, Noise Gate und Klangkorrektur"),
                   mic_master_ctl)
 
         mic_names = {k: v["name"] for k, v in fx_dsp.MIC_PRESETS.items()}
@@ -1789,33 +1851,192 @@ class SettingsWindow(tk.Toplevel):
                     core.fx_mic_apply_params()
                     self.show_page("effekte")
             cur = mic_names.get(mfx.get("voreinstellung", "mic_klar"),
-                                "Mikrofon - Klar")
+                                fx_dsp.MIC_PRESETS["mic_klar"]["name"])
             Dropdown(ctl, list(mic_names.values()), lambda: cur, change,
-                     width=172, bg=T.CARD).pack()
+                     width=210, bg=T.CARD).pack()
 
-        mcard.row("apps", "Mikrofon-Profil",
-                  fx_dsp.MIC_PRESETS.get(mfx.get("voreinstellung", ""), {}).get(
-                      "beschreibung", "Fertige Profile für Sprache"),
+        mcard.row("apps", "Profil",
+                  fx_dsp.MIC_PRESETS.get(mfx.get("voreinstellung", "mic_klar"),
+                                         {}).get("beschreibung", ""),
                   mic_preset_ctl)
 
         def mic_out_ctl(ctl):
             def change(v):
                 cfg["effekte_mikrofon_ausgabe"] = v
                 self.saved()
+                self.show_page("effekte")
             Dropdown(ctl, names or ["(kein Gerät)"],
                      lambda: cfg.get("effekte_mikrofon_ausgabe") or "(nicht gewählt)",
-                     change, width=186, bg=T.CARD).pack()
+                     change, width=210, bg=T.CARD).pack()
 
-        mcard.row("headphones", "Bearbeitetes Signal nach",
-                  "Gerät zum Mithören", mic_out_ctl)
+        mcard.row("headphones", "Ausgabe", "Wohin das bearbeitete Signal geht",
+                  mic_out_ctl)
 
-        tk.Label(body,
-                 text="Hinweis: Das bearbeitete Mikrofon lässt sich mithören, aber "
-                      "nicht als Eingang an Discord oder TeamSpeak weiterreichen – "
-                      "dafür bräuchte es ein virtuelles Audiokabel, und das ist ein "
-                      "Treiber. Fluneit kommt bewusst ohne aus.",
-                 bg=T.WINDOW, fg=T.DIS, font=F(12), wraplength=470,
+        if cable:
+            note = (f"Für Discord, TeamSpeak & Co.: Ausgabe auf „{cable}“ stellen und "
+                    "dort als Mikrofon „CABLE Output“ wählen. Dann hören die anderen "
+                    "das bearbeitete Mikrofon.")
+        else:
+            note = ("Ohne virtuelles Audiokabel lässt sich das bearbeitete Mikrofon nur "
+                    "mithören. Damit Discord & Co. es bekommen, braucht es ein Kabel wie "
+                    "VB-CABLE (ein Treiber, den Fluneit bewusst nicht mitbringt).")
+        tk.Label(body, text=note, bg=T.WINDOW, fg=T.DIS, font=F(12), wraplength=470,
                  justify="left", anchor="w").pack(fill="x", pady=(8, 0))
+
+    def _fx_setup_dialog(self):
+        """Erst-Einrichtung: Ausgabegeraet, Bruecke, Verzoegerung."""
+        import fx_engine
+        cfg = core.CONFIG
+        names, target, bridge = core.fx_suggest_devices()
+        dlg = Dialog(self, "Effekte einrichten", width=440)
+        tk.Label(dlg.body,
+                 text="Windows lässt Programme nicht ohne Treiber in den Ton eingreifen. "
+                      "Fluneit nutzt deshalb einen Umweg: Windows spielt auf ein Gerät, "
+                      "das niemand hört (die Brücke). Fluneit nimmt den Ton dort ab, "
+                      "legt die Effekte darauf und spielt ihn auf deinem Ausgabegerät. "
+                      "Ausschalten stellt alles zurück.",
+                 bg=T.CARD, fg=T.SEC, font=F(12), wraplength=396, justify="left",
+                 anchor="w").pack(fill="x", pady=(0, 12))
+
+        if len(names) < 2:
+            tk.Label(dlg.body,
+                     text="Es gibt nur ein Ausgabegerät. Für die Brücke braucht es einen "
+                          "zweiten Ausgang, an dem nichts hängt – zum Beispiel den "
+                          "HDMI-Ausgang der Grafikkarte oder den Digitalausgang des "
+                          "Mainboards (in Windows unter Sound → Ausgabe aktivieren).",
+                     bg=T.CARD, fg=T.DANGER, font=F(12), wraplength=396,
+                     justify="left", anchor="w").pack(fill="x")
+            PushButton(dlg.actions, "Schließen", variant="primary",
+                       command=dlg.destroy, bg=T.CARD).pack(side="right")
+            dlg.finish()
+            return
+
+        state = {"ziel": cfg.get("effekte_ausgabe") or target,
+                 "bruecke": cfg.get("effekte_bruecke") or bridge,
+                 "latenz": cfg.get("effekte_latenz", "mittel")}
+        dds = {}
+
+        def field(label, hint):
+            tk.Label(dlg.body, text=label, bg=T.CARD, fg=T.TEXT, font=F(13),
+                     anchor="w").pack(fill="x", pady=(6, 0))
+            tk.Label(dlg.body, text=hint, bg=T.CARD, fg=T.DIS, font=F(11),
+                     anchor="w").pack(fill="x", pady=(0, 4))
+
+        def pick(key):
+            def change(v):
+                state[key] = v
+                other = "bruecke" if key == "ziel" else "ziel"
+                if state[other] == v:     # nie dasselbe Geraet
+                    state[other] = next((n for n in names if n != v), "")
+                    if other in dds:
+                        dds[other].refresh()
+            return change
+
+        field("Ausgabegerät", "Kopfhörer oder Lautsprecher, über die du hörst")
+        dds["ziel"] = Dropdown(dlg.body, names, lambda: state["ziel"], pick("ziel"),
+                               width=396, bg=T.CARD)
+        dds["ziel"].pack(anchor="w")
+        field("Brücke", "Ein Ausgang, an dem nichts angeschlossen ist")
+        dds["bruecke"] = Dropdown(dlg.body, names, lambda: state["bruecke"],
+                                  pick("bruecke"), width=396, bg=T.CARD)
+        dds["bruecke"].pack(anchor="w")
+
+        lab = {k: v["name"] for k, v in fx_engine.LATENCY_MODES.items()}
+        rv = {v: k for k, v in lab.items()}
+        field("Verzögerung", "Niedrig für Spiele; knackt es, eine Stufe höher")
+        Dropdown(dlg.body, list(lab.values()), lambda: lab[state["latenz"]],
+                 lambda v: state.update(latenz=rv.get(v, "mittel")),
+                 width=396, bg=T.CARD).pack(anchor="w")
+
+        def start():
+            if not state["ziel"] or not state["bruecke"] \
+                    or state["ziel"] == state["bruecke"]:
+                self.toast.show("Bitte zwei verschiedene Geräte wählen")
+                return
+            cfg["effekte_ausgabe"] = state["ziel"]
+            cfg["effekte_bruecke"] = state["bruecke"]
+            cfg["effekte_latenz"] = state["latenz"]
+            self.saved()
+            dlg.destroy()
+            ok, why = core.fx_start()
+            self.toast.show("Effekte an" if ok else (why[:60] or "Start fehlgeschlagen"))
+            self.show_page("effekte")
+
+        PushButton(dlg.actions, "Einschalten", variant="primary", command=start,
+                   bg=T.CARD).pack(side="right")
+        PushButton(dlg.actions, "Abbrechen", command=dlg.destroy,
+                   bg=T.CARD).pack(side="right", padx=(0, 8))
+        dlg.finish()
+
+    def _fx_save_preset_dialog(self):
+        cfg = core.CONFIG
+        dlg = Dialog(self, "Preset speichern", width=360)
+        tk.Label(dlg.body, text="Name", bg=T.CARD, fg=T.TEXT, font=F(13),
+                 anchor="w").pack(fill="x")
+        sel = cfg.get("effekte", {}).get("voreinstellung", "")
+        var = tk.StringVar(value=sel[6:] if sel.startswith("eigen:") else "")
+        entry = tk.Entry(dlg.body, textvariable=var, bg=T.HOVER, fg=T.TEXT,
+                         insertbackground=T.TEXT, relief="flat", font=F(13),
+                         highlightthickness=1, highlightbackground=T.STROKE,
+                         highlightcolor=T.ACCENT)
+        entry.pack(fill="x", ipady=6, pady=(4, 0))
+        entry.focus_set()
+
+        def save(_e=None):
+            name = var.get().strip()[:40]
+            if not name:
+                self.toast.show("Bitte einen Namen eingeben")
+                return
+            werte = {k: v for k, v in cfg.get("effekte", {}).items()
+                     if k != "voreinstellung"}
+            own = [p for p in cfg.get("effekte_eigene", [])
+                   if isinstance(p, dict) and p.get("name") != name]
+            own.append({"name": name, "werte": json.loads(json.dumps(werte))})
+            cfg["effekte_eigene"] = own
+            cfg["effekte"]["voreinstellung"] = "eigen:" + name
+            self.saved()
+            dlg.destroy()
+            self.toast.show(f"„{name}“ gespeichert")
+            self.show_page("effekte")
+
+        entry.bind("<Return>", save)
+        PushButton(dlg.actions, "Speichern", variant="primary", command=save,
+                   bg=T.CARD).pack(side="right")
+        PushButton(dlg.actions, "Abbrechen", command=dlg.destroy,
+                   bg=T.CARD).pack(side="right", padx=(0, 8))
+        dlg.finish()
+
+    def _fx_help_dialog(self):
+        dlg = Dialog(self, "So funktionieren die Effekte", width=480)
+        teile = [
+            ("Der Weg des Tons",
+             "Windows spielt auf die Brücke, Fluneit nimmt den Ton dort ab, rechnet "
+             "die Effekte und gibt ihn auf deinem Ausgabegerät aus. Das kostet je nach "
+             "Stufe etwa 20 bis 100 ms. Ausschalten stellt das Standardgerät zurück, "
+             "auch nach einem Absturz beim nächsten Start."),
+            ("Equalizer",
+             "Sieben Regler für sieben Frequenzbereiche. Nach oben wird der Bereich "
+             "lauter, nach unten leiser. Fürs Zocken: 2,5 und 6 kHz anheben bringt "
+             "Schritte nach vorn, 60 und 150 Hz absenken nimmt dröhnenden Bass raus."),
+            ("Was nicht geht",
+             "Ein Spiel liefert einen fertigen Mix. Einzelne Geräusche wie „nur "
+             "Schritte“ oder „nur Fähigkeiten“ lassen sich daraus nicht herausrechnen – "
+             "nur ihre Frequenzbereiche. Genau das tun die Gaming-Presets."),
+            ("Kompressor",
+             "Gleicht Laut und Leise an. Explosionen werden gebremst, leise Geräusche "
+             "angehoben. Der Regler „Stärke“ bestimmt, wie sehr."),
+            ("Schutzlimiter",
+             "Läuft immer mit und lässt sich nicht abschalten: Er verhindert, dass eine "
+             "starke Anhebung übersteuert und in den Ohren wehtut."),
+        ]
+        for titel, text in teile:
+            tk.Label(dlg.body, text=titel, bg=T.CARD, fg=T.TEXT, font=F(13, semibold=True),
+                     anchor="w").pack(fill="x", pady=(6, 0))
+            tk.Label(dlg.body, text=text, bg=T.CARD, fg=T.SEC, font=F(12),
+                     wraplength=436, justify="left", anchor="w").pack(fill="x")
+        PushButton(dlg.actions, "Verstanden", variant="primary", command=dlg.destroy,
+                   bg=T.CARD).pack(side="right")
+        dlg.finish()
 
     # --- Seite: Regeln ---
     RULE_LABELS = {"startlautstaerke": "Start bei fester Lautstärke",

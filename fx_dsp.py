@@ -522,16 +522,12 @@ def _b(typ, hz, db, q=0.707, an=True):
 
 
 PRESETS = {
-    "neutral": {
-        "name": "Neutral",
-        "beschreibung": "Alles flach - Ausgangspunkt fuer eigene Einstellungen.",
-        "werte": {"vorverstaerkung_db": 0.0, "baender": [], "kompressor": False,
-                  "rauschunterdrueckung": False, "noise_gate": False},
-    },
+    # --- Gaming -----------------------------------------------------------
     "schritte": {
-        "name": "Gaming - Schritte",
-        "beschreibung": "Hebt den Bereich, in dem Schritte und Nachladen liegen, "
-                        "und nimmt Explosionsbass zurueck, der sie uebertoent.",
+        "name": "Gaming – Schritte & Details",
+        "gruppe": "Gaming",
+        "beschreibung": "Für Shooter: hebt den Bereich, in dem Schritte und Nachladen "
+                        "liegen, und nimmt Explosionsbass zurück, der sie verdeckt.",
         "werte": {
             "vorverstaerkung_db": -2.0,
             "baender": [_b("tiefen", 120, -6.0),
@@ -546,10 +542,30 @@ PRESETS = {
                                  "ausgleich_db": 3.0},
         },
     },
+    "gaming_ausgewogen": {
+        "name": "Gaming – Ausgewogen",
+        "gruppe": "Gaming",
+        "beschreibung": "Für Rollenspiele und Open World: Wucht bleibt, Stimmen und "
+                        "Umgebung kommen klarer. Leichte Kompression gleicht Lautes "
+                        "und Leises aus.",
+        "werte": {
+            "vorverstaerkung_db": -1.5,
+            "baender": [_b("tiefen", 90, 2.0),
+                        _b("glocke", 350, -2.0, 0.9),
+                        _b("glocke", 2800, 2.5, 1.0),
+                        _b("hoehen", 9000, 1.5)],
+            "kompressor": True,
+            "kompressor_werte": {"schwelle_db": -24.0, "verhaeltnis": 2.0,
+                                 "attack_ms": 10.0, "release_ms": 150.0,
+                                 "ausgleich_db": 2.0},
+        },
+    },
     "ruhig": {
-        "name": "Gaming - Leise Nacht",
-        "beschreibung": "Starke Kompression: Explosionen werden leiser, Schritte "
-                        "und Stimmen bleiben hoerbar. Gut fuer spaete Runden.",
+        "name": "Gaming – Leise Nacht",
+        "gruppe": "Gaming",
+        "beschreibung": "Starke Kompression: Explosionen werden leiser, Schritte und "
+                        "Stimmen bleiben hörbar. Für spät abends, ohne ständig am "
+                        "Lautstärkerad zu drehen.",
         "werte": {
             "vorverstaerkung_db": 0.0,
             "baender": [_b("tiefen", 90, -8.0), _b("glocke", 3000, 2.5, 1.2)],
@@ -559,9 +575,12 @@ PRESETS = {
                                  "ausgleich_db": 6.0},
         },
     },
+    # --- Alltag -----------------------------------------------------------
     "musik": {
         "name": "Musik",
-        "beschreibung": "Sanfte Badewanne - etwas mehr Bass und Glanz.",
+        "gruppe": "Alltag",
+        "beschreibung": "Sanfte Badewanne: etwas mehr Bass und Glanz, die Mitten "
+                        "treten leicht zurück.",
         "werte": {
             "vorverstaerkung_db": -1.5,
             "baender": [_b("tiefen", 100, 3.5), _b("glocke", 900, -1.5, 0.9),
@@ -571,7 +590,9 @@ PRESETS = {
     },
     "film": {
         "name": "Film & Serie",
-        "beschreibung": "Dialoge nach vorn, Effektbass leicht gezaehmt.",
+        "gruppe": "Alltag",
+        "beschreibung": "Dialoge nach vorn, Effektbass leicht gezähmt – man muss "
+                        "zwischen Gespräch und Action nicht nachregeln.",
         "werte": {
             "vorverstaerkung_db": -1.0,
             "baender": [_b("tiefen", 110, -2.5), _b("glocke", 1800, 3.0, 1.0),
@@ -584,7 +605,9 @@ PRESETS = {
     },
     "sprache": {
         "name": "Sprache & Podcast",
-        "beschreibung": "Schmalbandig auf Verstaendlichkeit, Rumpeln raus.",
+        "gruppe": "Alltag",
+        "beschreibung": "Auf Verständlichkeit getrimmt, Rumpeln raus. Gut für "
+                        "Podcasts, Videos und Calls.",
         "werte": {
             "vorverstaerkung_db": 0.0,
             "hochpass_hz": 90.0,
@@ -598,23 +621,30 @@ PRESETS = {
     },
     "bass": {
         "name": "Bass",
-        "beschreibung": "Deutlich mehr Tiefton, fuer Kopfhoerer ohne Druck.",
+        "gruppe": "Alltag",
+        "beschreibung": "Deutlich mehr Tiefton – für Kopfhörer, denen Druck fehlt.",
         "werte": {
             "vorverstaerkung_db": -3.0,
             "baender": [_b("tiefen", 90, 7.0), _b("glocke", 60, 3.0, 1.2)],
             "kompressor": False,
         },
     },
+    "neutral": {
+        "name": "Neutral",
+        "gruppe": "Alltag",
+        "beschreibung": "Alles flach – Ausgangspunkt für eigene Einstellungen.",
+        "werte": {"vorverstaerkung_db": 0.0, "baender": [], "kompressor": False},
+    },
 }
 
 MIC_PRESETS = {
     "mic_neutral": {
-        "name": "Mikrofon - Neutral",
+        "name": "Mikrofon – Neutral",
         "beschreibung": "Nur Rumpelfilter und Schutzlimiter.",
         "werte": {"hochpass_hz": 80.0, "baender": []},
     },
     "mic_klar": {
-        "name": "Mikrofon - Klar",
+        "name": "Mikrofon – Klar",
         "beschreibung": "Rauschunterdrueckung, Gate und Praesenzanhebung - "
                         "der Alltagsmodus fuer Discord und TeamSpeak.",
         "werte": {
@@ -630,7 +660,7 @@ MIC_PRESETS = {
         },
     },
     "mic_radio": {
-        "name": "Mikrofon - Radio",
+        "name": "Mikrofon – Radio",
         "beschreibung": "Kraeftig komprimiert und warm, wie im Sendestudio.",
         "werte": {
             "hochpass_hz": 100.0,
