@@ -1,0 +1,25 @@
+# Gemeinsam
+psutil
+pystray
+Pillow
+
+# Windows (WASAPI, WinRT-Medien)
+pycaw; sys_platform == 'win32'
+comtypes; sys_platform == 'win32'
+winrt-runtime; sys_platform == 'win32'
+winrt-Windows.Media.Control; sys_platform == 'win32'
+winrt-Windows.Foundation; sys_platform == 'win32'
+winrt-Windows.Storage.Streams; sys_platform == 'win32'
+winrt-Windows.Foundation.Collections; sys_platform == 'win32'
+
+# Linux (PipeWire/Pulse, X11, MPRIS)
+pulsectl; sys_platform == 'linux'
+python-xlib; sys_platform == 'linux'
+dbus-next; sys_platform == 'linux'
+
+# Audio-Effekte (Equalizer, Rauschunterdrueckung). Nur noetig, wenn die
+# Effekte benutzt werden - ohne diese Pakete laeuft Fluneit normal weiter
+# und zeigt auf der Effekte-Seite einen Hinweis.
+numpy
+scipy
+sounddevice
