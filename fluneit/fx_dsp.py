@@ -833,6 +833,3 @@ def selftest(verbose=True):
     return ok
 
 
-if __name__ == "__main__":
-    import sys
-    sys.exit(0 if selftest() else 1)

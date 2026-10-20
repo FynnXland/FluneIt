@@ -19,7 +19,7 @@ import threading
 from dbus_next import Variant
 from dbus_next.service import ServiceInterface, method, dbus_property, signal, PropertyAccess
 
-import linux_media
+from fluneit import linux_media
 
 
 def _pixmap_from_pil(img):

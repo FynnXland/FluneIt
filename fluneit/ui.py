@@ -136,7 +136,7 @@ def screen_geometry(win):
     Fenster bei mehreren Monitoren nicht auf der Nahtstelle landen."""
     if not IS_WINDOWS:
         try:
-            import linux_osd
+            from fluneit import linux_osd
             return linux_osd.primary_geometry(win)
         except Exception:
             pass
@@ -634,7 +634,7 @@ class EqStrip(tk.Canvas):
         try:
             import numpy as np
 
-            import fx_dsp
+            from fluneit import fx_dsp
             eq = fx_dsp.Equalizer(48000, 1)
             eq.set_bands(self.bands)
             freqs = np.geomspace(30.0, 18000.0, 96)
@@ -1039,7 +1039,7 @@ class SettingsWindow(tk.Toplevel):
         self.geometry(f"{self.W}x{self.H}+{sx + (sw - self.W) // 2}+{sy + (sh - self.H) // 2 - 30}")
         try:
             if IS_WINDOWS:
-                self.iconbitmap(resource_path("icon.ico"))
+                self.iconbitmap(resource_path("assets", "icon.ico"))
             else:
                 self.iconphoto(True, app_icon_image(64))
         except Exception:
@@ -1507,8 +1507,8 @@ class SettingsWindow(tk.Toplevel):
                      "Installieren mit:  pip install -r requirements.txt")
             return
 
-        import fx_dsp
-        import fx_engine
+        from fluneit import fx_dsp
+        from fluneit import fx_engine
 
         fx = cfg.setdefault("effekte", {})
         if not fx.get("baender"):
@@ -1892,7 +1892,7 @@ class SettingsWindow(tk.Toplevel):
 
     def _fx_setup_dialog(self):
         """Erst-Einrichtung: Ausgabegeraet, Bruecke, Verzoegerung."""
-        import fx_engine
+        from fluneit import fx_engine
         cfg = core.CONFIG
         names, target, bridge = core.fx_suggest_devices()
         dlg = Dialog(self, "Effekte einrichten", width=440)
@@ -2484,8 +2484,8 @@ class Flyout:
             ctypes.windll.user32.SystemParametersInfoW(48, 0, ctypes.byref(work), 0)
             right, bottom = work.right, work.bottom
         else:
-            import linux_input
-            import linux_osd
+            from fluneit import linux_input
+            from fluneit import linux_osd
             wx, wy, ww, wh = linux_input.get_workarea()
             px_, py_, pw_, ph_ = linux_osd.primary_geometry(self.root)
             right = min(wx + ww, px_ + pw_)
@@ -2532,7 +2532,7 @@ class Flyout:
             else:
                 click = None
         else:
-            import linux_input
+            from fluneit import linux_input
             esc = linux_input.escape_down()
             mx, my, down = linux_input.pointer_info()
             click = (mx, my) if down else None

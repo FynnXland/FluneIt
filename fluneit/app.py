@@ -45,19 +45,21 @@ if IS_WINDOWS:
     from comtypes import CLSCTX_ALL
     from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume, IAudioMeterInformation
 else:
-    import linux_audio
-    import linux_icons
-    import linux_input
-    import linux_media
+    from fluneit import linux_audio
+    from fluneit import linux_icons
+    from fluneit import linux_input
+    from fluneit import linux_media
 
 __version__ = "1.17.0"
 
 # ----------------------------- Pfade & Konfiguration ------------------------
 
 def app_dir():
+    """Programmordner: neben der Exe bzw. die Wurzel des Quellcode-Ordners
+    (dort liegen assets/ und ggf. die portable config.json)."""
     if getattr(sys, "frozen", False):          # als PyInstaller-Exe
         return os.path.dirname(sys.executable)
-    return os.path.dirname(os.path.abspath(__file__))
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def data_dir():
@@ -1249,7 +1251,7 @@ if IS_WINDOWS:
                 self._push_image(hwnd, img, x, y, alpha=self.FADE_ALPHAS[i])
             self._fade_job = self.root.after(self.FADE_STEP_MS, self._fade_step, i + 1)
 else:
-    from linux_osd import OSD  # gleiche Schnittstelle, Tk/X11-basiert
+    from fluneit.linux_osd import OSD  # gleiche Schnittstelle, Tk/X11-basiert
 
 
 
@@ -1405,8 +1407,8 @@ def fx_modules():
     """fx_dsp und fx_engine bei Bedarf laden. (None, None) wenn die
     Abhaengigkeiten fehlen."""
     try:
-        import fx_dsp
-        import fx_engine
+        from fluneit import fx_dsp
+        from fluneit import fx_engine
         return fx_dsp, fx_engine
     except Exception as e:
         global _fx_error
@@ -1424,7 +1426,7 @@ _fx_preload = {"thread": None}
 
 def fx_ready():
     """Sind die Effekt-Bibliotheken schon geladen? Laedt selbst nichts."""
-    return "fx_engine" in sys.modules and "fx_dsp" in sys.modules
+    return "fluneit.fx_engine" in sys.modules and "fluneit.fx_dsp" in sys.modules
 
 
 def fx_preload_async():
@@ -2818,9 +2820,24 @@ AUTOSTART_LABEL = "Mit Windows starten" if IS_WINDOWS else "Beim Anmelden starte
 
 
 def autostart_target():
+    """Programmdatei, die beim Anmelden startet (Exe bzw. Python)."""
+    return launch_command()[0]
+
+
+def launch_command(windowless=True):
+    """(Programm, Argumente), mit denen sich FluneIt selbst startet.
+
+    Als Exe: die Exe. Aus dem Quellcode: ``python -m fluneit`` im
+    Programmordner, unter Windows ueber pythonw.exe, damit kein
+    Konsolenfenster aufgeht."""
     if getattr(sys, "frozen", False):
-        return sys.executable
-    return os.path.abspath(__file__)
+        return sys.executable, []
+    exe = sys.executable
+    if IS_WINDOWS and windowless:
+        pyw = os.path.join(os.path.dirname(exe), "pythonw.exe")
+        if os.path.exists(pyw):
+            exe = pyw
+    return exe, ["-m", "fluneit"]
 
 
 if IS_WINDOWS:
@@ -2879,17 +2896,10 @@ if IS_WINDOWS:
     def _task_xml():
         """Aufgabendefinition. Als XML statt ueber schtasks-Schalter, weil
         sich nur so das Zeitlimit abschalten laesst (s. ExecutionTimeLimit)."""
-        target = autostart_target()
         user = "{}\\{}".format(os.environ.get("USERDOMAIN", ""),
                                os.environ.get("USERNAME", ""))
-        if getattr(sys, "frozen", False):
-            command, arguments = target, "--autostart"
-        else:
-            # Aus dem Quellcode ueber pythonw starten, sonst haengt beim
-            # Anmelden ein Konsolenfenster daran
-            pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
-            command = pyw if os.path.exists(pyw) else sys.executable
-            arguments = '"{}" --autostart'.format(target)
+        command, args = launch_command()
+        arguments = " ".join(args + ["--autostart"])
         e = _xml_escape
         return (
             '<?xml version="1.0" encoding="UTF-16"?>\n'
@@ -2981,13 +2991,8 @@ if IS_WINDOWS:
     def _write_lnk():
         """Rueckfallebene, falls die Aufgabenplanung nicht mitspielt."""
         lnk = _startup_lnk_path()
-        target = autostart_target()
-        if getattr(sys, "frozen", False):
-            args = ""
-        else:
-            pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
-            target = pyw if os.path.exists(pyw) else sys.executable
-            args = "$s.Arguments='\"{}\"';".format(autostart_target())
+        target, extra = launch_command()
+        args = "$s.Arguments='{}';".format(" ".join(extra)) if extra else ""
         ps = ("$s=(New-Object -ComObject WScript.Shell).CreateShortcut('{}');"
               "$s.TargetPath='{}';{}$s.WorkingDirectory='{}';"
               "$s.Description='FluneIt';$s.Save()").format(lnk, target, args, APP_DIR)
@@ -3105,11 +3110,8 @@ else:
                 logging.exception("Autostart-Eintrag nicht loeschbar")
                 return False
             return True
-        target = autostart_target()
-        if getattr(sys, "frozen", False):
-            exec_line = '"{}" --autostart'.format(target)
-        else:
-            exec_line = '"{}" "{}" --autostart'.format(sys.executable, target)
+        exe, extra = launch_command()
+        exec_line = " ".join(['"{}"'.format(exe)] + extra + ["--autostart"])
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, "w", encoding="utf-8") as f:
@@ -3214,7 +3216,7 @@ def make_tray_icon(on_quit, on_restart, on_mixer, on_settings):
         # Bevorzugt: natives StatusNotifierItem via D-Bus (Plasma rendert
         # xembed-Icons von pystray oft als schwarzes Quadrat oder gar nicht)
         try:
-            import linux_tray
+            from fluneit import linux_tray
             title = f"FluneIt {__version__} - Strg + Lautstärkerad = App-Lautstärke"
             tray = linux_tray.Tray(
                 make_icon_image(48), title, AUTOSTART_LABEL, autostart_enabled,
@@ -3341,7 +3343,7 @@ def main():
     root.withdraw()
     osd = OSD(root)
 
-    import ui
+    from fluneit import ui
     ui.init(sys.modules[__name__], root)
     flyout = ui.Flyout(root, osd.scale)
 
@@ -3404,19 +3406,11 @@ def main():
             except Exception:
                 pass
         if restart_requested:
-            if getattr(sys, "frozen", False):
-                # unter Linux aus der sterbenden Sitzung loesen, sonst nimmt
-                # das Ende des alten Prozesses den neuen mit
-                subprocess.Popen([sys.executable], cwd=APP_DIR,
-                                 **({} if IS_WINDOWS else {"start_new_session": True}))
-            elif IS_WINDOWS:
-                pythonw = sys.executable.replace("python.exe", "pythonw.exe")
-                subprocess.Popen([pythonw, os.path.abspath(__file__)], cwd=APP_DIR)
-            else:
-                subprocess.Popen([sys.executable, os.path.abspath(__file__)],
-                                 cwd=APP_DIR, start_new_session=True)
+            exe, extra = launch_command()
+            # unter Linux aus der sterbenden Sitzung loesen, sonst nimmt das
+            # Ende des alten Prozesses den neuen mit
+            subprocess.Popen([exe] + extra, cwd=APP_DIR,
+                             **({} if IS_WINDOWS else {"start_new_session": True}))
         os._exit(0)  # beendet auch den Hook-Thread
 
 
-if __name__ == "__main__":
-    main()

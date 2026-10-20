@@ -21,7 +21,7 @@ import tkinter as tk
 
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
-import linux_input
+from fluneit import linux_input
 
 _FONT_CANDIDATES = ["NotoSans-Regular.ttf", "Ubuntu-R.ttf", "DejaVuSans.ttf"]
 _FONT_BOLD_CANDIDATES = ["NotoSans-Bold.ttf", "Ubuntu-B.ttf", "DejaVuSans-Bold.ttf"]
@@ -318,7 +318,7 @@ class OSD:
     def show(self, app_name, volume=None, muted=False, no_session=False, kind="app", note=None,
              media_icon=None, media_text=None, media_cover=None, extra_pills=None,
              extra_dim=False):
-        import fluneit as core
+        from fluneit import app as core
         self.hide_hint()
         if not core.CONFIG.get("overlay_anzeigen", True):
             return

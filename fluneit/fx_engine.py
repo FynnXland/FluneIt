@@ -33,7 +33,7 @@ from ctypes import POINTER, byref, c_byte, c_uint32, c_uint64
 
 import numpy as np
 
-import fx_dsp
+from fluneit import fx_dsp
 
 IS_WINDOWS = sys.platform == "win32"
 
@@ -662,5 +662,3 @@ def selftest(seconds=2.0, verbose=True):
     return ok
 
 
-if __name__ == "__main__":
-    sys.exit(0 if selftest() else 1)
