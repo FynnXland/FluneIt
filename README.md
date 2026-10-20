@@ -8,6 +8,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/FynnXland/FluneIt/actions/workflows/tests.yml"><img src="https://github.com/FynnXland/FluneIt/actions/workflows/tests.yml/badge.svg?branch=main" alt="Tests"></a>
   <a href="https://github.com/FynnXland/FluneIt/releases/latest"><img src="https://img.shields.io/github/v/release/FynnXland/FluneIt?label=release" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/FynnXland/FluneIt" alt="MIT license"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2011-0078D6" alt="Platform: Windows 11">
@@ -39,7 +40,7 @@ an update.
 ## How it works
 
 ```mermaid
-flowchart LR
+flowchart TB
     A["Games, chat, music"] --> B["Bridge<br/>(an output nobody listens to)"]
     B --> C["FluneIt<br/>equalizer, compressor, limiter"]
     C --> D["Your headphones"]

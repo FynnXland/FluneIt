@@ -8,6 +8,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/FynnXland/FluneIt/actions/workflows/tests.yml"><img src="https://github.com/FynnXland/FluneIt/actions/workflows/tests.yml/badge.svg?branch=main" alt="Tests"></a>
   <a href="https://github.com/FynnXland/FluneIt/releases/latest"><img src="https://img.shields.io/github/v/release/FynnXland/FluneIt?label=release" alt="Neueste Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/FynnXland/FluneIt" alt="MIT-Lizenz"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2011-0078D6" alt="Plattform: Windows 11">
@@ -39,7 +40,7 @@ einem Update fragst.
 ## So funktioniert's
 
 ```mermaid
-flowchart LR
+flowchart TB
     A["Spiele, Chat, Musik"] --> B["Brücke<br/>(ein Ausgang, den niemand hört)"]
     B --> C["FluneIt<br/>Equalizer, Kompressor, Limiter"]
     C --> D["Deine Kopfhörer"]
