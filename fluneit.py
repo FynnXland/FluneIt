@@ -78,7 +78,24 @@ def data_dir():
 
 
 APP_DIR = app_dir()
-CONFIG_FILE = os.path.join(APP_DIR, "config.json")
+
+
+def _initial_config_file():
+    """Wo die Einstellungen liegen.
+
+    Normalfall: im Benutzerordner (%LOCALAPPDATA%\\Fluneit bzw.
+    ~/.local/state/fluneit) - so landet nichts im Download-Ordner, wenn man
+    die Exe von dort startet. Liegt neben dem Programm eine config.json,
+    gilt der portable Modus und FluneIt benutzt diese Datei (fuer USB-Sticks
+    und fuer Installationen, die schon so eingerichtet sind)."""
+    portable = os.path.join(APP_DIR, "config.json")
+    if os.path.exists(portable):
+        return portable
+    d = data_dir()
+    return os.path.join(d, "config.json") if d else portable
+
+
+CONFIG_FILE = _initial_config_file()
 LOG_FILE = os.path.join(APP_DIR, "fluneit.log")
 
 
@@ -219,20 +236,28 @@ def _parse_mods(spec):
 
 
 def _write_config(cfg):
-    """Config schreiben; klappt der Programmordner nicht, in den
-    Benutzerordner ausweichen (und ab dann dort bleiben)."""
+    """Config schreiben. Atomar (temporaere Datei + Umbenennen), damit ein
+    Absturz mitten im Speichern keine halbe Datei hinterlaesst. Klappt der
+    vorgesehene Ort nicht, wird ausgewichen und ab dann dort gespeichert."""
     global CONFIG_FILE
     paths = [CONFIG_FILE]
     d = data_dir()
-    if d:
-        alt = os.path.join(d, "config.json")
-        if alt not in paths:
+    for alt in ((os.path.join(d, "config.json") if d else None),
+                os.path.join(APP_DIR, "config.json")):
+        if alt and alt not in paths:
             paths.append(alt)
+    data = json.dumps(cfg, indent=2, ensure_ascii=False)
     for path in paths:
+        tmp = path + ".tmp"
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(data)
+            os.replace(tmp, path)
         except OSError:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
             continue
         CONFIG_FILE = path
         return True
@@ -240,14 +265,7 @@ def _write_config(cfg):
 
 
 def load_config():
-    global CONFIG_FILE
     cfg = dict(DEFAULT_CONFIG)
-    # Zuerst neben dem Programm, sonst im Benutzerordner suchen
-    d = data_dir()
-    if not os.path.exists(CONFIG_FILE) and d:
-        alt = os.path.join(d, "config.json")
-        if os.path.exists(alt):
-            CONFIG_FILE = alt
     loaded = None
     try:
         with open(CONFIG_FILE, encoding="utf-8") as f:
@@ -255,8 +273,16 @@ def load_config():
         cfg.update({k: v for k, v in loaded.items() if k in DEFAULT_CONFIG})
     except FileNotFoundError:
         pass
-    except (json.JSONDecodeError, OSError):
-        logging.warning("config.json unlesbar, Standardwerte werden benutzt")
+    except (json.JSONDecodeError, OSError, AttributeError):
+        # Nicht einfach ueberschreiben: die Datei beiseitelegen, damit man
+        # seine Einstellungen von Hand retten kann
+        backup = CONFIG_FILE + ".defekt"
+        try:
+            os.replace(CONFIG_FILE, backup)
+            logging.warning("config.json unlesbar, als %s gesichert; "
+                            "Standardwerte werden benutzt", backup)
+        except OSError:
+            logging.warning("config.json unlesbar, Standardwerte werden benutzt")
         return cfg
     # Ausgeblendete Apps auf die plattformneutrale Schreibweise bringen
     # ("spotify.exe" -> "spotify"), damit dieselbe config.json unter Windows

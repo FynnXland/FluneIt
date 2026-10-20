@@ -238,6 +238,7 @@ desktop.ini
 
 # --- Laufzeitdaten der App: Fangschutz, falls sie im Projektordner landen ---
 config.json
+config.json.*
 *.log
 *.db
 
