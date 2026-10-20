@@ -11,6 +11,7 @@ the track "Night Drive – Example Artist" with a made-up cover.
 | `hero.en.gif`, `hero.de.gif` | The overlay in four situations: app volume, microphone, music app with a second player, next track | Overlay drawing code (`OSD._render_box`, `OSD._render_pill`) at 2× on a neutral background, 15 fps, about 8.5 s |
 | `effects.png` | Settings, page *Effekte*, with effects running and the preset *Gaming – Schritte & Details* | The real settings window, captured off screen with `PrintWindow`; the running state is simulated |
 | `mixer.png` | The tray mixer | The real mixer, captured off screen; apps and devices are invented |
+| `../social-preview.png` | Image for link previews of the repository (1280 × 640) | Logo, claim and the overlay drawing code; uploaded by hand under *Settings → General → Social preview* |
 
 **Demo elements:** the keycaps and the line of text at the top of the GIFs, the
 neutral background and the grey taskbar placeholders are not part of FluneIt.

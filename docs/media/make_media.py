@@ -14,6 +14,8 @@ Outputs (next to this script):
   hero.en.gif / hero.de.gif   overlay in four situations, rendered at 2x
   effects.png                 settings, "Effekte" page, effects running (mocked)
   mixer.png                   tray mixer with invented apps
+  ../social-preview.png       1280 x 640 image for the repository's social preview
+                              (uploaded by hand: Settings -> General -> Social preview)
 """
 import ctypes
 import os
@@ -345,10 +347,35 @@ def screenshots():
     root.destroy()
 
 
+def social_preview():
+    """1280 x 640, opaque, important content in the middle."""
+    img = Image.new("RGB", (1280, 640), (22, 28, 38))
+    d = ImageDraw.Draw(img)
+    logo = Image.open(ROOT / "assets" / "app-icon-256.png").convert("RGBA").resize((150, 150))
+    img.paste(logo, (130, 100), logo)
+    d.text((310, 100), "FluneIt", font=font(96, bold=True), fill=(255, 255, 255))
+    d.text((314, 218), "The volume wheel, for every app on its own.", font=font(36),
+           fill=(205, 212, 222))
+    x = 314
+    for chip in ("Per-app volume", "Gaming EQ", "No driver", "Windows 11"):
+        w = d.textlength(chip, font=font(28)) + 40
+        d.rounded_rectangle([x, 290, x + w, 342], 26, fill=(45, 56, 72))
+        d.text((x + w / 2, 316), chip, font=font(28), fill=(220, 226, 234), anchor="mm")
+        x += w + 16
+    osd = make_osd(1.6)
+    box = osd._render_box(0.6, False, False, "app")
+    pill = osd._render_pill("Game")
+    bx = (1280 - box.width) // 2
+    img.paste(box, (bx, 490), box)
+    img.paste(pill, ((1280 - pill.width) // 2, 490 - osd.pill_gap - pill.height), pill)
+    img.save(HERE.parent / "social-preview.png", optimize=True)
+
+
 def main():
     for lang in ("en", "de"):
         write_gif(scenes(lang), HERE / f"hero.{lang}.gif")
     screenshots()
+    social_preview()
     for name in ("hero.en.gif", "hero.de.gif", "effects.png", "mixer.png"):
         p = HERE / name
         print(f"{name:12} {p.stat().st_size / 1024:7.0f} KB")
