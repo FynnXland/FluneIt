@@ -1,4 +1,4 @@
-"""Fluneit - Benutzeroberflaeche nach dem SoundControl Design System.
+"""FluneIt - Benutzeroberflaeche nach dem SoundControl Design System.
 
 Implementiert die claude.ai/design-Vorlagen (Projekt "SoundControl Design System"):
 Einstellungsfenster (Allgemein / Steuerung / Mixer / Regeln / Ueber),
@@ -1032,7 +1032,7 @@ class SettingsWindow(tk.Toplevel):
 
     def __init__(self, root, page="allgemein"):
         super().__init__(root)
-        self.title("Fluneit")
+        self.title("FluneIt")
         self.configure(bg=T.WINDOW)
         self.resizable(False, False)
         sx, sy, sw, sh = screen_geometry(self)
@@ -1094,14 +1094,6 @@ class SettingsWindow(tk.Toplevel):
         card.row("settings", core.AUTOSTART_LABEL,
                  core.autostart_status()[1], autostart_ctl)
 
-        def design_ctl(ctl):
-            Badge(ctl, "Bald verfügbar", bg=T.CARD).pack(side="left", padx=(0, 8))
-            dd = Dropdown(ctl, ["Dunkel", "Hell", "System"], lambda: "Dunkel", lambda v: None, width=120, bg=T.CARD)
-            dd.disabled = True
-            dd.refresh()
-            dd.pack(side="left")
-
-        card.row("monitor", "Design", "Farbschema der Oberfläche", design_ctl)
 
         section_title(body, "Overlay")
         card2 = SettingsCard(body)
@@ -1260,6 +1252,21 @@ class SettingsWindow(tk.Toplevel):
 
         card.row("speaker-2", "Musik-App regeln",
                  "Modifier f\u00fcr die App, die gerade Musik/Medien wiedergibt \u2013 auch ohne Fokus", bg_ctl)
+
+        def comm_ctl(ctl):
+            options = ["Strg+Alt", "Strg+Shift+Alt", "Aus"]
+
+            def change(v):
+                cfg["kommunikation_modifier"] = "" if v == "Aus" else v.lower()
+                self.saved()
+                self.show_page("steuerung")
+            Dropdown(ctl, options,
+                     lambda: mod_label(cfg.get("kommunikation_modifier", "")), change,
+                     width=150, bg=T.CARD).pack()
+
+        card.row("headphones", "Sprach-Apps regeln",
+                 "Discord, TeamSpeak, Teams & Co. gemeinsam lauter oder leiser – "
+                 "egal, welches Fenster vorne ist", comm_ctl)
 
         # --- Belegungs\u00fcbersicht (generisch aus der Config) ---
         section_title(body, "Belegung")
@@ -1879,7 +1886,7 @@ class SettingsWindow(tk.Toplevel):
         else:
             note = ("Ohne virtuelles Audiokabel lässt sich das bearbeitete Mikrofon nur "
                     "mithören. Damit Discord & Co. es bekommen, braucht es ein Kabel wie "
-                    "VB-CABLE (ein Treiber, den Fluneit bewusst nicht mitbringt).")
+                    "VB-CABLE (ein Treiber, den FluneIt bewusst nicht mitbringt).")
         tk.Label(body, text=note, bg=T.WINDOW, fg=T.DIS, font=F(12), wraplength=470,
                  justify="left", anchor="w").pack(fill="x", pady=(8, 0))
 
@@ -1891,8 +1898,8 @@ class SettingsWindow(tk.Toplevel):
         dlg = Dialog(self, "Effekte einrichten", width=440)
         tk.Label(dlg.body,
                  text="Windows lässt Programme nicht ohne Treiber in den Ton eingreifen. "
-                      "Fluneit nutzt deshalb einen Umweg: Windows spielt auf ein Gerät, "
-                      "das niemand hört (die Brücke). Fluneit nimmt den Ton dort ab, "
+                      "FluneIt nutzt deshalb einen Umweg: Windows spielt auf ein Gerät, "
+                      "das niemand hört (die Brücke). FluneIt nimmt den Ton dort ab, "
                       "legt die Effekte darauf und spielt ihn auf deinem Ausgabegerät. "
                       "Ausschalten stellt alles zurück.",
                  bg=T.CARD, fg=T.SEC, font=F(12), wraplength=396, justify="left",
@@ -2010,7 +2017,7 @@ class SettingsWindow(tk.Toplevel):
         dlg = Dialog(self, "So funktionieren die Effekte", width=480)
         teile = [
             ("Der Weg des Tons",
-             "Windows spielt auf die Brücke, Fluneit nimmt den Ton dort ab, rechnet "
+             "Windows spielt auf die Brücke, FluneIt nimmt den Ton dort ab, rechnet "
              "die Effekte und gibt ihn auf deinem Ausgabegerät aus. Das kostet je nach "
              "Stufe etwa 20 bis 100 ms. Ausschalten stellt das Standardgerät zurück, "
              "auch nach einem Absturz beim nächsten Start."),
@@ -2055,7 +2062,7 @@ class SettingsWindow(tk.Toplevel):
         card.pack(fill="x")
         if not rules:
             EmptyState(card, "rules",
-                       "Noch keine Regeln. Eine Regel legt fest, wie Fluneit eine App behandelt "
+                       "Noch keine Regeln. Eine Regel legt fest, wie FluneIt eine App behandelt "
                        "— z. B. immer stumm oder mit fester Start-Lautstärke.",
                        action=lambda p: PushButton(p, "Regel hinzufügen", icon="add", variant="primary",
                                                    command=lambda: self._rule_dialog(), bg=T.CARD).pack(pady=(12, 0))
@@ -2177,33 +2184,70 @@ class SettingsWindow(tk.Toplevel):
         tk.Label(inner, image=app_icon_image(64), bg=T.CARD).pack(side="left", padx=(0, 20))
         txt = tk.Frame(inner, bg=T.CARD)
         txt.pack(side="left", fill="x", expand=True)
-        tk.Label(txt, text="Fluneit", bg=T.CARD, fg=T.TEXT,
+        tk.Label(txt, text="FluneIt", bg=T.CARD, fg=T.TEXT,
                  font=F(20, semibold=True, display=True), anchor="w").pack(fill="x")
         tk.Label(txt, text=f"Version {core.__version__}", bg=T.CARD, fg=T.SEC, font=F(12),
                  anchor="w").pack(fill="x", pady=(2, 8))
-        tk.Label(txt, text="Regelt die Lautstärke einzelner Programme über das\nLautstärkerad der Tastatur.",
+        tk.Label(txt, text="Lautstärke einzelner Programme über das Lautstärkerad,\n"
+                           "dazu Equalizer und Kompressor für alles, was du hörst.",
                  bg=T.CARD, fg=T.SEC, font=F(13), anchor="w", justify="left").pack(fill="x")
 
         actions = tk.Frame(body, bg=T.WINDOW)
         actions.pack(fill="x", pady=(16, 0))
         status = tk.Frame(actions, bg=T.WINDOW)
 
-        def check():
+        def show_status(icon, text, color=T.SEC, link=None):
             for c in status.winfo_children():
                 c.destroy()
-            tk.Label(status, text=ICONS["check"], font=IF(14), fg=T.SEC, bg=T.WINDOW).pack(side="left")
-            tk.Label(status, text=" Fluneit ist aktuell", font=F(12), fg=T.SEC,
+            if icon:
+                tk.Label(status, text=ICONS[icon], font=IF(14), fg=color,
+                         bg=T.WINDOW).pack(side="left")
+            tk.Label(status, text=" " + text, font=F(12), fg=color,
                      bg=T.WINDOW).pack(side="left")
+            if link:
+                lnk = tk.Label(status, text="  Herunterladen", font=F(12), fg=T.ACCENT,
+                               bg=T.WINDOW, cursor="hand2")
+                lnk.pack(side="left")
+                lnk.bind("<Button-1>", lambda e: open_path(link))
+
+        def check():
+            # Nur hier geht FluneIt online. Im Hintergrund, damit das Fenster
+            # waehrend der Anfrage nicht haengt.
+            show_status(None, "Frage GitHub …")
+
+            def work():
+                result = core.check_for_update()
+                core._post_to_ui(lambda: done(*result))
+
+            def done(state, version):
+                if not status.winfo_exists():
+                    return
+                if state == "neu":
+                    show_status("download", f"Version {version} ist da.", T.ACCENT,
+                                link=core.RELEASES_URL)
+                elif state == "aktuell":
+                    show_status("check", "FluneIt ist aktuell")
+                else:
+                    show_status("info", version)
+
+            threading.Thread(target=work, daemon=True).start()
 
         PushButton(actions, "Nach Updates suchen", icon="refresh", command=check).pack(side="left")
         status.pack(side="left", padx=12)
+        tk.Label(body, text="Fragt nur auf Klick die neueste Version bei GitHub ab – "
+                            "sonst geht FluneIt nicht ins Netz.",
+                 bg=T.WINDOW, fg=T.DIS, font=F(11), anchor="w").pack(fill="x", pady=(6, 0))
 
         links = tk.Frame(body, bg=T.WINDOW)
         links.pack(fill="x", pady=(20, 0))
-        for text, path in (("Log-Datei öffnen", core.LOG_FILE), ("Projektordner öffnen", core.APP_DIR)):
+        log_file = core.ACTIVE_LOG_FILE or core.LOG_FILE
+        for text, path in (("Projekt auf GitHub", f"https://github.com/{core.REPO}"),
+                           ("Log-Datei öffnen", log_file),
+                           ("Einstellungsordner öffnen", os.path.dirname(core.CONFIG_FILE))):
             lnk = tk.Label(links, text=text, font=F(13), fg=T.ACCENT, bg=T.WINDOW, cursor="hand2")
             lnk.pack(side="left", padx=(0, 20))
-            lnk.bind("<Button-1>", lambda e, p=path: open_path(p) if os.path.exists(p) else None)
+            lnk.bind("<Button-1>", lambda e, p=path: open_path(p)
+                     if p.startswith("https://") or os.path.exists(p) else None)
 
 
 # ----------------------------- Tray-Flyout ----------------------------------
@@ -2555,9 +2599,9 @@ class OnboardingWindow(tk.Toplevel):
 
     def _step0(self, p):
         tk.Label(p, image=app_icon_image(64), bg=T.WINDOW).pack(pady=(0, 16))
-        tk.Label(p, text="Willkommen bei Fluneit", bg=T.WINDOW, fg=T.TEXT,
+        tk.Label(p, text="Willkommen bei FluneIt", bg=T.WINDOW, fg=T.TEXT,
                  font=F(20, semibold=True, display=True)).pack()
-        tk.Label(p, text="Fluneit läuft ab jetzt im Infobereich und regelt\ndie Lautstärke einzelner Programme.",
+        tk.Label(p, text="FluneIt läuft ab jetzt im Infobereich und regelt\ndie Lautstärke einzelner Programme.",
                  bg=T.WINDOW, fg=T.SEC, font=F(13), justify="center").pack(pady=(12, 0))
 
     def _step1(self, p):

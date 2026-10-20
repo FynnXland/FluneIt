@@ -18,7 +18,7 @@ python-xlib; sys_platform == 'linux'
 dbus-next; sys_platform == 'linux'
 
 # Audio-Effekte (Equalizer, Rauschunterdrueckung). Nur noetig, wenn die
-# Effekte benutzt werden - ohne diese Pakete laeuft Fluneit normal weiter
+# Effekte benutzt werden - ohne diese Pakete laeuft FluneIt normal weiter
 # und zeigt auf der Effekte-Seite einen Hinweis.
 numpy
 scipy

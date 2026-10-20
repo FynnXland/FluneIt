@@ -1,4 +1,4 @@
-"""Fluneit - Effekt-Engine (Ein-/Ausgabe).
+"""FluneIt - Effekt-Engine (Ein-/Ausgabe).
 
 Holt Audio herein, schickt es durch fx_dsp.FxChain und gibt es wieder aus.
 Alles im Benutzermodus, ohne Treiber und ohne Eingriff in die Registry.
@@ -11,9 +11,9 @@ stellen die als normale Eingabe bereit), Wiedergabe ebenfalls sounddevice.
 
 Das Prinzip der "Bruecke":
     Programme spielen auf Gerauet A (das niemand hoert)
-      -> Fluneit nimmt A per Loopback auf
+      -> FluneIt nimmt A per Loopback auf
       -> Effektkette
-      -> Fluneit gibt auf Geraet B aus (die echten Kopfhoerer)
+      -> FluneIt gibt auf Geraet B aus (die echten Kopfhoerer)
 
 Damit liegen Effekte auf allem, was das System abspielt, ohne dass ein
 virtuelles Audiogeraet installiert werden muss.

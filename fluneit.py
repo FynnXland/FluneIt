@@ -1,4 +1,4 @@
-"""Fluneit - Per-App-Lautstaerke ueber das Lautstaerkerad der Tastatur.
+"""FluneIt - Per-App-Lautstaerke ueber das Lautstaerkerad der Tastatur.
 
 Laeuft unter Windows (Low-Level-Hook, WASAPI/pycaw) und Linux (X11-Grabs,
 PulseAudio/PipeWire). Plattformspezifisches steckt hinter IS_WINDOWS bzw. in
@@ -101,16 +101,19 @@ def _log_path_usable(path):
         return False
 
 
+ACTIVE_LOG_FILE = None     # tatsaechlich benutzte Log-Datei (setup_logging)
+
+
 def setup_logging():
     """Datei-Log einrichten. Schlaegt jeder Pfad fehl (z. B. weil die Datei auf
-    NTFS-Ebene beschaedigt ist), laeuft Fluneit ohne Datei-Log weiter - der
+    NTFS-Ebene beschaedigt ist), laeuft FluneIt ohne Datei-Log weiter - der
     Start darf daran niemals scheitern."""
     fmt = "%(asctime)s %(levelname)s %(message)s"
     # Benutzerordner zuerst, Programmordner nur als Rueckfall. Umgekehrt ist
     # es anfaellig: eine beschaedigte Datei im Programmordner laesst sich je
     # nach startendem Prozess mal oeffnen und mal nicht - dann landen
     # Startmeldungen mal hier, mal dort, mal nirgends. Genau daran war nicht
-    # nachvollziehbar, ob Fluneit beim Anmelden hochkam.
+    # nachvollziehbar, ob FluneIt beim Anmelden hochkam.
     candidates = []
     d = data_dir()
     if d:
@@ -126,19 +129,21 @@ def setup_logging():
         handler.setFormatter(logging.Formatter(fmt))
         root = logging.getLogger()
         # INFO statt WARNING: pro Start eine Zeile ist die einzige Spur, an
-        # der sich spaeter ablesen laesst, ob Fluneit beim Anmelden ueberhaupt
+        # der sich spaeter ablesen laesst, ob FluneIt beim Anmelden ueberhaupt
         # hochkam. Ohne die tappt man bei "Autostart geht nicht" im Dunkeln.
         root.setLevel(logging.INFO)
         root.addHandler(handler)
         if path == LOG_FILE and d:
             root.warning("Benutzerordner nicht nutzbar, schreibe nach %s", path)
+        global ACTIVE_LOG_FILE
+        ACTIVE_LOG_FILE = path
         return path
     logging.basicConfig(level=logging.INFO, format=fmt, stream=sys.stderr)
     return None
 
 
 def started_by_autostart():
-    """Wurde Fluneit von der Anmelde-Aufgabe gestartet? Die uebergibt
+    """Wurde FluneIt von der Anmelde-Aufgabe gestartet? Die uebergibt
     --autostart, damit im Log steht, wie der Start zustande kam."""
     return "--autostart" in sys.argv[1:]
 
@@ -1362,7 +1367,7 @@ if IS_WINDOWS:
 # und soll den Start derjenigen nicht bremsen, die keine Effekte wollen.
 #
 # Funktionsweise ("Bruecke"): Windows spielt auf ein Geraet, das niemand
-# hoert; Fluneit nimmt das per Loopback auf, legt die Effekte darauf und gibt
+# hoert; FluneIt nimmt das per Loopback auf, legt die Effekte darauf und gibt
 # es auf den echten Kopfhoerern aus. Kein Treiber, keine Registry.
 
 _fx_engine = None
@@ -1433,7 +1438,7 @@ def _fx_current_default():
 
 def fx_restore_device(reason=""):
     """Standard-Ausgabegeraet zurueckstellen. Wird nach jedem Stopp und beim
-    Start aufgerufen - Letzteres faengt den Fall ab, dass Fluneit im
+    Start aufgerufen - Letzteres faengt den Fall ab, dass FluneIt im
     Brueckenbetrieb abgeschossen wurde und der Nutzer sonst ohne Ton dasteht."""
     dev_id = CONFIG.get("effekte_wiederherstellen") or ""
     if not dev_id:
@@ -1682,7 +1687,7 @@ def fx_mic_status():
 
 
 def fx_shutdown():
-    """Beim Beenden von Fluneit aufrufen - laesst niemanden ohne Ton zurueck."""
+    """Beim Beenden von FluneIt aufrufen - laesst niemanden ohne Ton zurueck."""
     try:
         fx_mic_stop()
     except Exception:
@@ -2730,6 +2735,57 @@ def rules_tick(root: tk.Tk):
     root.after(4000, rules_tick, root)
 
 
+# ----------------------------- Update-Pruefung -----------------------------
+# Der einzige Netzwerkzugriff von FluneIt unter Windows - und nur, wenn man in
+# den Einstellungen auf "Nach Updates suchen" klickt. Es wird nichts gesendet
+# ausser der Anfrage selbst (keine Kennung, keine Nutzungsdaten).
+
+REPO = "FynnXland/FluneIt"
+RELEASES_URL = f"https://github.com/{REPO}/releases/latest"
+_LATEST_API = f"https://api.github.com/repos/{REPO}/releases/latest"
+
+
+def _version_tuple(v):
+    """'v2.0.1' -> (2, 0, 1); Unlesbares -> ()."""
+    parts = []
+    for p in str(v).strip().lstrip("vV").split("."):
+        num = "".join(ch for ch in p if ch.isdigit())
+        if not num:
+            break
+        parts.append(int(num))
+    return tuple(parts)
+
+
+def check_for_update(timeout=6.0):
+    """Neueste Version auf GitHub erfragen.
+
+    Gibt (zustand, version) zurueck; zustand ist "neu" (Update da),
+    "aktuell" oder "fehler" (dann steht in version die Meldung)."""
+    import json as _json
+    import urllib.request
+    req = urllib.request.Request(_LATEST_API, headers={
+        "Accept": "application/vnd.github+json",
+        "User-Agent": f"FluneIt/{__version__}"})
+    import urllib.error
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            data = _json.loads(r.read(200_000).decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        logging.info("Update-Pruefung: HTTP %s", e.code)
+        if e.code == 404:
+            return "fehler", "Auf GitHub gibt es noch keine Version"
+        return "fehler", f"GitHub antwortet mit Fehler {e.code}"
+    except Exception as e:
+        logging.info("Update-Pruefung fehlgeschlagen: %s", e)
+        return "fehler", "GitHub nicht erreichbar"
+    tag = str(data.get("tag_name") or "")
+    if not _version_tuple(tag):
+        return "fehler", "Unerwartete Antwort von GitHub"
+    if _version_tuple(tag) > _version_tuple(__version__):
+        return "neu", tag.lstrip("vV")
+    return "aktuell", tag.lstrip("vV")
+
+
 # ----------------------------- Autostart ------------------------------------
 
 AUTOSTART_LABEL = "Mit Windows starten" if IS_WINDOWS else "Beim Anmelden starten"
@@ -2814,7 +2870,7 @@ if IS_WINDOWS:
             '<Task version="1.2" '
             'xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">\n'
             "  <RegistrationInfo>\n"
-            "    <Description>Startet Fluneit beim Anmelden.</Description>\n"
+            "    <Description>Startet FluneIt beim Anmelden.</Description>\n"
             "  </RegistrationInfo>\n"
             "  <Triggers>\n"
             "    <LogonTrigger>\n"
@@ -2850,7 +2906,7 @@ if IS_WINDOWS:
             "      <RestartOnIdle>false</RestartOnIdle>\n"
             "    </IdleSettings>\n"
             # PT0S = kein Zeitlimit. Ohne das wuerde Windows die Aufgabe -
-            # und damit Fluneit - nach drei Tagen Laufzeit beenden.
+            # und damit FluneIt - nach drei Tagen Laufzeit beenden.
             "    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>\n"
             "    <Priority>7</Priority>\n"
             "  </Settings>\n"
@@ -2908,7 +2964,7 @@ if IS_WINDOWS:
             args = "$s.Arguments='\"{}\"';".format(autostart_target())
         ps = ("$s=(New-Object -ComObject WScript.Shell).CreateShortcut('{}');"
               "$s.TargetPath='{}';{}$s.WorkingDirectory='{}';"
-              "$s.Description='Fluneit';$s.Save()").format(lnk, target, args, APP_DIR)
+              "$s.Description='FluneIt';$s.Save()").format(lnk, target, args, APP_DIR)
         try:
             subprocess.run(["powershell", "-NoProfile", "-Command", ps],
                            creationflags=subprocess.CREATE_NO_WINDOW,
@@ -2938,7 +2994,7 @@ if IS_WINDOWS:
         return c["v"]
 
     def _autostart_enabled_now():
-        """Startet Fluneit wirklich beim Anmelden? Prueft den Zustand und
+        """Startet FluneIt wirklich beim Anmelden? Prueft den Zustand und
         nicht bloss, ob eine Datei existiert - sonst zeigt die Oberflaeche
         einen aktivierten Schalter, obwohl Windows nichts startet."""
         state = _task_state()
@@ -2980,7 +3036,7 @@ if IS_WINDOWS:
 
         if _create_task():
             # Die Aufgabe uebernimmt - alte Verknuepfung weg, sonst startet
-            # Fluneit beim Anmelden zweimal
+            # FluneIt beim Anmelden zweimal
             _remove_lnk()
             return True
 
@@ -3033,7 +3089,7 @@ else:
             with open(path, "w", encoding="utf-8") as f:
                 f.write("[Desktop Entry]\n"
                         "Type=Application\n"
-                        "Name=Fluneit\n"
+                        "Name=FluneIt\n"
                         "Exec=" + exec_line + "\n"
                         "Path=" + APP_DIR + "\n"
                         "X-GNOME-Autostart-enabled=true\n"
@@ -3133,7 +3189,7 @@ def make_tray_icon(on_quit, on_restart, on_mixer, on_settings):
         # xembed-Icons von pystray oft als schwarzes Quadrat oder gar nicht)
         try:
             import linux_tray
-            title = f"Fluneit {__version__} - Strg + Lautstärkerad = App-Lautstärke"
+            title = f"FluneIt {__version__} - Strg + Lautstärkerad = App-Lautstärke"
             tray = linux_tray.Tray(
                 make_icon_image(48), title, AUTOSTART_LABEL, autostart_enabled,
                 on_mixer, on_settings,
@@ -3179,7 +3235,7 @@ def make_tray_icon(on_quit, on_restart, on_mixer, on_settings):
     app_vks = _parse_mods(CONFIG.get("modifier", "strg")) or frozenset({0x11})
     keys = " + ".join(_MOD_NAMES.get(v, "?")
                       for v in sorted(app_vks, key=lambda v: _MOD_ORDER.get(v, 9)))
-    title = f"Fluneit {__version__} - {keys} + Lautstärkerad = App-Lautstärke"
+    title = f"FluneIt {__version__} - {keys} + Lautstärkerad = App-Lautstärke"
     icon = pystray.Icon("Fluneit", make_tray_image(), title, menu)
     icon.run_detached()
     return icon
@@ -3226,7 +3282,7 @@ def acquire_single_instance():
 
 def main():
     setup_logging()
-    logging.info("Fluneit %s gestartet (%s, %s)", __version__,
+    logging.info("FluneIt %s gestartet (%s, %s)", __version__,
                  "Anmeldung" if started_by_autostart() else "manuell",
                  "Exe" if getattr(sys, "frozen", False) else "Quellcode")
 
@@ -3234,7 +3290,7 @@ def main():
     if mutex is None:
         sys.exit(0)  # laeuft bereits
 
-    # Steht hier noch ein Geraet zum Zurueckstellen, wurde Fluneit im
+    # Steht hier noch ein Geraet zum Zurueckstellen, wurde FluneIt im
     # Brueckenbetrieb hart beendet. Zuerst aufraeumen, sonst hat der Nutzer
     # keinen Ton und weiss nicht, warum.
     if CONFIG.get("effekte_wiederherstellen"):

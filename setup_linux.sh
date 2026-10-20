@@ -4,7 +4,7 @@
 set -e
 cd "$(dirname "$0")"
 
-echo "== Fluneit Linux-Setup =="
+echo "== FluneIt Linux-Setup =="
 
 echo "-- Systempakete (sudo noetig): python3-tk, venv, pip --"
 sudo apt-get install -y python3-tk python3-venv python3-pip

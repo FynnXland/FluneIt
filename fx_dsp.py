@@ -1,4 +1,4 @@
-"""Fluneit - Audio-Effekte (DSP-Kern).
+"""FluneIt - Audio-Effekte (DSP-Kern).
 
 Reine Signalverarbeitung, ohne Ein-/Ausgabe und ohne Plattformbezug: alles
 hier arbeitet auf numpy-Bloecken der Form (frames, channels) in float32.

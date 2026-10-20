@@ -1,7 +1,7 @@
-# Baut Fluneit.exe neu (nach Aenderungen an fluneit.py)
+# Baut FluneIt.exe neu (nach Aenderungen an fluneit.py)
 # Voraussetzung: python -m pip install -r requirements.txt pyinstaller
 $dir = $PSScriptRoot
-Get-Process Fluneit -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process FluneIt -ErrorAction SilentlyContinue | Stop-Process -Force
 # Zwei Gruppen von Ausschluessen:
 #  1. Die linux_*-Module und ihre Abhaengigkeiten (Xlib, pulsectl, dbus-next)
 #     werden unter Windows nie erreicht - ohne --exclude-module folgt
@@ -13,7 +13,7 @@ Get-Process Fluneit -ErrorAction SilentlyContinue | Stop-Process -Force
 # NICHT ausschliessen: scipy.optimize/interpolate/sparse/stats/spatial/integrate
 # - die zieht scipy.signal wirklich nach (geprueft), ohne sie startet die Exe
 # nicht mehr.
-python -m PyInstaller --onefile --noconsole --name Fluneit `
+python -m PyInstaller --onefile --noconsole --name FluneIt `
     --icon "$dir\icon.ico" `
     --exclude-module linux_audio --exclude-module linux_icons `
     --exclude-module linux_input --exclude-module linux_media `
@@ -27,7 +27,7 @@ python -m PyInstaller --onefile --noconsole --name Fluneit `
     --add-data "$dir\assets;assets" --add-data "$dir\icon.ico;." `
     --distpath "$dir\dist" --workpath "$env:LOCALAPPDATA\Temp\fluneit_build" `
     --specpath "$env:LOCALAPPDATA\Temp\fluneit_build" "$dir\fluneit.py"
-Move-Item "$dir\dist\Fluneit.exe" "$dir\Fluneit.exe" -Force
+Move-Item "$dir\dist\FluneIt.exe" "$dir\FluneIt.exe" -Force
 Remove-Item "$dir\dist" -Recurse -Force
-Write-Host "Fertig: $dir\Fluneit.exe"
-Start-Process "$dir\Fluneit.exe"
+Write-Host "Fertig: $dir\FluneIt.exe"
+Start-Process "$dir\FluneIt.exe"
